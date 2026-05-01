@@ -1,0 +1,53 @@
+# Dependencies
+**/node_modules/
+**/package-lock.json
+
+# IDE
+**/.vscode/*
+**/.idea/
+
+# Kiro (if you don't want to share specs)
+**/.kiro/*
+
+# Environment variables (IMPORTANT - contains secrets)
+**/.env
+**/.env.local
+**/.env.production
+**/.env.development
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# Production build
+frontend/dist/
+
+# Test coverage
+**/coverage/
+**/.nyc_output/
+
+# Logs
+**/logs/
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Uploads (user-generated content - usually not committed)
+backend/uploads/videos/*
+backend/uploads/subtitles/*
+!backend/uploads/videos/.gitkeep
+!backend/uploads/subtitles/.gitkeep
+!backend/uploads/subtitles/sample-subtitle.vtt
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
