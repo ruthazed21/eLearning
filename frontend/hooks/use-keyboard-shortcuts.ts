@@ -13,13 +13,15 @@ interface KeyboardShortcut {
 export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const pressedKey = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+
       for (const shortcut of shortcuts) {
         const ctrlMatch = shortcut.ctrl ? e.ctrlKey : !e.ctrlKey;
         const altMatch = shortcut.alt ? e.altKey : !e.altKey;
         const shiftMatch = shortcut.shift ? e.shiftKey : !e.shiftKey;
 
         if (
-          e.key.toLowerCase() === shortcut.key.toLowerCase() &&
+          pressedKey === shortcut.key.toLowerCase() &&
           ctrlMatch &&
           altMatch &&
           shiftMatch
