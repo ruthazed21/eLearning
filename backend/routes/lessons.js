@@ -14,6 +14,8 @@ const storage = multer.diskStorage({
       cb(null, path.join(__dirname, '../uploads/videos'));
     } else if (file.fieldname === 'subtitle') {
       cb(null, path.join(__dirname, '../uploads/subtitles'));
+    } else if (file.fieldname === 'document') {
+      cb(null, path.join(__dirname, '../uploads/documents'));
     } else {
       cb(new Error('Invalid field name'));
     }
@@ -25,6 +27,10 @@ const storage = multer.diskStorage({
       cb(null, `video-${uniqueSuffix}${ext}`);
     } else if (file.fieldname === 'subtitle') {
       cb(null, `subtitle-${uniqueSuffix}${ext}`);
+    } else if (file.fieldname === 'document') {
+      cb(null, `document-${uniqueSuffix}${ext}`);
+    } else {
+      cb(new Error('Invalid field name'));
     }
   },
 });
@@ -33,12 +39,24 @@ const upload = multer({
   storage,
   limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB max
   fileFilter: (req, file, cb) => {
+    const normalizedName = file.originalname.toLowerCase();
+    const documentAllowed = [
+      'application/pdf',
+      'application/vnd.ms-powerpoint',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ];
+
     if (file.fieldname === 'video' && file.mimetype.startsWith('video/')) {
       cb(null, true);
-    } else if (file.fieldname === 'subtitle' && (file.mimetype === 'text/vtt' || file.originalname.endsWith('.vtt'))) {
+    } else if (file.fieldname === 'subtitle' && (file.mimetype === 'text/vtt' || normalizedName.endsWith('.vtt'))) {
+      cb(null, true);
+    } else if (
+      file.fieldname === 'document' &&
+      (documentAllowed.includes(file.mimetype) || normalizedName.endsWith('.pdf') || normalizedName.endsWith('.ppt') || normalizedName.endsWith('.pptx'))
+    ) {
       cb(null, true);
     } else {
-      cb(new Error('Only video files and VTT subtitle files are allowed'));
+      cb(new Error('Only video files, VTT subtitles, and PDF/PPT documents are allowed'));
     }
   },
 });
@@ -81,7 +99,8 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create lesson (Teacher and Admin only)
 router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields([
   { name: 'video', maxCount: 1 },
-  { name: 'subtitle', maxCount: 1 }
+  { name: 'subtitle', maxCount: 1 },
+  { name: 'document', maxCount: 1 }
 ]), [
   body('courseId').isInt(),
   body('title').trim().notEmpty(),
@@ -92,11 +111,12 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { courseId, title, description, content, videoUrl, subtitleUrl, orderIndex, durationMinutes } = req.body;
+  const { courseId, title, description, content, videoUrl, subtitleUrl, documentUrl, orderIndex, durationMinutes } = req.body;
 
   // Handle uploaded files
   let finalVideoUrl = videoUrl || null;
   let finalSubtitleUrl = subtitleUrl || null;
+  let finalDocumentUrl = documentUrl || null;
   
   if (req.files) {
     if (req.files.video && req.files.video[0]) {
@@ -105,6 +125,13 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
     if (req.files.subtitle && req.files.subtitle[0]) {
       finalSubtitleUrl = `/uploads/subtitles/${req.files.subtitle[0].filename}`;
     }
+    if (req.files.document && req.files.document[0]) {
+      finalDocumentUrl = `/uploads/documents/${req.files.document[0].filename}`;
+    }
+  }
+
+  if (!finalVideoUrl && !finalDocumentUrl) {
+    return res.status(400).json({ error: 'Please upload either a video or a document for the lesson.' });
   }
 
   try {
@@ -120,10 +147,10 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
     }
 
     const result = await pool.query(
-      `INSERT INTO lessons (course_id, title, description, content, video_url, subtitle_url, order_index, duration_minutes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO lessons (course_id, title, description, content, video_url, subtitle_url, document_url, order_index, duration_minutes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
-      [courseId, title, description || null, content || null, finalVideoUrl, finalSubtitleUrl, orderIndex, durationMinutes || null]
+      [courseId, title, description || null, content || null, finalVideoUrl, finalSubtitleUrl, finalDocumentUrl, orderIndex, durationMinutes || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -136,7 +163,8 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
 // Update lesson
 router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fields([
   { name: 'video', maxCount: 1 },
-  { name: 'subtitle', maxCount: 1 }
+  { name: 'subtitle', maxCount: 1 },
+  { name: 'document', maxCount: 1 }
 ]), [
   body('title').optional().trim().notEmpty(),
   body('orderIndex').optional().isInt(),
@@ -148,12 +176,32 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
   }
   try {
     const { id } = req.params;
-    const { title, description, content, videoUrl, subtitleUrl, orderIndex, durationMinutes } = req.body;
+    const { title, description, content, videoUrl, subtitleUrl, documentUrl, orderIndex, durationMinutes } = req.body;
 
-    // Handle uploaded files
-    let finalVideoUrl = videoUrl !== undefined ? videoUrl : undefined;
-    let finalSubtitleUrl = subtitleUrl !== undefined ? subtitleUrl : undefined;
-    
+    const existingLesson = await pool.query(
+      'SELECT video_url, subtitle_url, document_url FROM lessons WHERE id = $1',
+      [id]
+    );
+
+    if (existingLesson.rows.length === 0) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    // Handle uploaded files and preserve current media if no new file is provided.
+    let finalVideoUrl = existingLesson.rows[0].video_url;
+    let finalSubtitleUrl = existingLesson.rows[0].subtitle_url;
+    let finalDocumentUrl = existingLesson.rows[0].document_url;
+
+    if (videoUrl !== undefined) {
+      finalVideoUrl = videoUrl;
+    }
+    if (subtitleUrl !== undefined) {
+      finalSubtitleUrl = subtitleUrl;
+    }
+    if (documentUrl !== undefined) {
+      finalDocumentUrl = documentUrl;
+    }
+
     if (req.files) {
       if (req.files.video && req.files.video[0]) {
         finalVideoUrl = `/uploads/videos/${req.files.video[0].filename}`;
@@ -161,6 +209,13 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
       if (req.files.subtitle && req.files.subtitle[0]) {
         finalSubtitleUrl = `/uploads/subtitles/${req.files.subtitle[0].filename}`;
       }
+      if (req.files.document && req.files.document[0]) {
+        finalDocumentUrl = `/uploads/documents/${req.files.document[0].filename}`;
+      }
+    }
+
+    if (!finalVideoUrl && !finalDocumentUrl) {
+      return res.status(400).json({ error: 'Lesson must include either a video or a document.' });
     }
 
     // Check course ownership for teachers
@@ -183,12 +238,13 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
            content = COALESCE($3, content),
            video_url = COALESCE($4, video_url),
            subtitle_url = COALESCE($5, subtitle_url),
-           order_index = COALESCE($6, order_index),
-           duration_minutes = COALESCE($7, duration_minutes),
+           document_url = COALESCE($6, document_url),
+           order_index = COALESCE($7, order_index),
+           duration_minutes = COALESCE($8, duration_minutes),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
-      [title, description, content, finalVideoUrl, finalSubtitleUrl, orderIndex, durationMinutes, id]
+      [title, description, content, finalVideoUrl, finalSubtitleUrl, finalDocumentUrl, orderIndex, durationMinutes, id]
     );
 
     if (result.rows.length === 0) {

@@ -24,6 +24,7 @@ interface Lesson {
   description?: string;
   video_url?: string;
   subtitle_url?: string;
+  document_url?: string;
 }
 
 interface EditLessonDialogProps {
@@ -40,6 +41,7 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
   const [description, setDescription] = useState('');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -51,6 +53,7 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
       setDescription(lesson.description || '');
       setVideoFile(null);
       setSubtitleFile(null);
+      setDocumentFile(null);
       setError('');
     }
   }, [lesson]);
@@ -65,6 +68,11 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
     setSubtitleFile(file);
   };
 
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setDocumentFile(file);
+  };
+
   const clearVideo = () => {
     setVideoFile(null);
     const input = document.getElementById('edit-video') as HTMLInputElement;
@@ -77,9 +85,20 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
     if (input) input.value = '';
   };
 
+  const clearDocument = () => {
+    setDocumentFile(null);
+    const input = document.getElementById('edit-document') as HTMLInputElement;
+    if (input) input.value = '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lesson) return;
+
+    if (!videoFile && !documentFile && !lesson.video_url && !lesson.document_url) {
+      setError('Please include either a video or a document for this lesson.');
+      return;
+    }
 
     setIsSubmitting(true);
     setError('');
@@ -92,6 +111,7 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
         durationMinutes: parseInt(duration) || 0,
         videoFile: videoFile ?? null,
         subtitleFile: subtitleFile ?? null,
+        documentFile: documentFile ?? null,
       });
 
       onSave({
@@ -102,6 +122,7 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
         description: data.description || '',
         video_url: data.video_url || '',
         subtitle_url: data.subtitle_url || '',
+        document_url: data.document_url || '',
       });
 
       onOpenChange(false);
@@ -125,9 +146,14 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
     ? lesson.subtitle_url.split('/').pop()
     : null;
 
+  // Extract filename from existing document_url for display
+  const existingDocumentName = lesson.document_url
+    ? lesson.document_url.split('/').pop()
+    : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Lesson</DialogTitle>
@@ -268,6 +294,48 @@ export function EditLessonDialog({ lesson, open, onOpenChange, onSave }: EditLes
                 </label>
               )}
               <p className="text-xs text-gray-400">Accepted format: VTT (WebVTT) files for accessibility</p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit-document">Lesson Document</Label>
+              {existingDocumentName && !documentFile && (
+                <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-md mb-1">
+                  <Upload className="h-4 w-4 text-blue-500 shrink-0" aria-hidden="true" />
+                  <span className="text-sm text-blue-700 truncate flex-1">Current: {existingDocumentName}</span>
+                </div>
+              )}
+              {documentFile ? (
+                <div className="flex items-center gap-2 p-2 bg-gray-50 border rounded-md">
+                  <Upload className="h-4 w-4 text-gray-500 shrink-0" aria-hidden="true" />
+                  <span className="text-sm text-gray-700 truncate flex-1">{documentFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={clearDocument}
+                    className="text-gray-400 hover:text-gray-600"
+                    aria-label="Remove selected document file"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="edit-document"
+                  className="flex items-center gap-2 p-2 border border-dashed rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  <span className="text-sm text-gray-500">
+                    {existingDocumentName ? 'Click to replace document' : 'Click to upload a document'}
+                  </span>
+                  <Input
+                    id="edit-document"
+                    type="file"
+                    accept=".pdf,.ppt,.pptx"
+                    className="hidden"
+                    onChange={handleDocumentChange}
+                  />
+                </label>
+              )}
+              <p className="text-xs text-gray-400">Accepted formats: PDF, PPT, PPTX</p>
             </div>
           </div>
           <DialogFooter>

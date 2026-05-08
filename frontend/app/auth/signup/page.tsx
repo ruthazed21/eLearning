@@ -109,7 +109,13 @@ export default function SignupPage() {
       const response = await authAPI.signup(signupData);
       login(response.token, response.user as User);
 
-      if (formData.role === 'teacher') {
+      // Mark this session as a fresh signup so the dashboard can welcome the user correctly.
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('justSignedUp', 'true');
+      }
+
+      const role = (response.user as User).role;
+      if (role === 'teacher') {
         router.push('/teacher/dashboard');
       } else {
         router.push('/student/dashboard');
@@ -160,6 +166,11 @@ export default function SignupPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
+              {errors.server && (
+                <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4" role="alert">
+                  <p className={`${textSize} text-red-800`}>{errors.server}</p>
+                </div>
+              )}
               <div className="space-y-3">
                 <Label className={textSize + ' font-semibold text-slate-950'}>I am a *</Label>
                 <RadioGroup
@@ -200,6 +211,9 @@ export default function SignupPage() {
                   placeholder="student@example.com"
                   className={textSize + ' text-slate-950 border-2 border-slate-300 focus:border-yellow-400 rounded-lg px-4 py-3'}
                 />
+                {formData.role === 'teacher' && (
+                  <p className="text-slate-500 text-sm mt-1">Teacher email should start with "edu".</p>
+                )}
                 {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
               </div>
               <div className="space-y-2">
@@ -212,6 +226,18 @@ export default function SignupPage() {
                   className={textSize + ' text-slate-950 border-2 border-slate-300 focus:border-yellow-400 rounded-lg px-4 py-3'}
                 />
                 {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className={textSize + ' font-semibold text-slate-950'}>Confirm Password *</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className={textSize + ' text-slate-950 border-2 border-slate-300 focus:border-yellow-400 rounded-lg px-4 py-3'}
+                />
+                {errors.confirmPassword && <p className="text-red-600 text-sm mt-1">{errors.confirmPassword}</p>}
               </div>
 
               {formData.role === 'student' ? (
@@ -244,6 +270,7 @@ export default function SignupPage() {
                         <Label htmlFor="deaf" className={'flex-1 cursor-pointer ' + textSize + ' text-slate-950 font-semibold'}>Deaf / Hearing Impaired</Label>
                       </div>
                     </RadioGroup>
+                    {errors.disabilityType && <p className="text-red-600 text-sm mt-1">{errors.disabilityType}</p>}
                   </div>
                 </>
               ) : (
@@ -255,6 +282,7 @@ export default function SignupPage() {
                     onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                     className={textSize + ' text-slate-950 border-2 border-slate-300 focus:border-yellow-400 rounded-lg px-4 py-3'}
                   />
+                  {errors.department && <p className="text-red-600 text-sm mt-1">{errors.department}</p>}
                 </div>
               )}
 

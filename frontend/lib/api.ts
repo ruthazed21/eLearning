@@ -465,6 +465,7 @@ export const lessonsAPI = {
     content?: string;
     videoFile?: File | null;
     subtitleFile?: File | null;
+    documentFile?: File | null;
     orderIndex: number;
     durationMinutes?: number;
   }) => {
@@ -477,6 +478,7 @@ export const lessonsAPI = {
     if (data.durationMinutes !== undefined) formData.append('durationMinutes', String(data.durationMinutes));
     if (data.videoFile) formData.append('video', data.videoFile);
     if (data.subtitleFile) formData.append('subtitle', data.subtitleFile);
+    if (data.documentFile) formData.append('document', data.documentFile);
     return apiRequestFormData('/lessons', formData, 'POST');
   },
 
@@ -486,6 +488,7 @@ export const lessonsAPI = {
     content?: string;
     videoFile?: File | null;
     subtitleFile?: File | null;
+    documentFile?: File | null;
     orderIndex?: number;
     durationMinutes?: number;
   }) => {
@@ -497,6 +500,7 @@ export const lessonsAPI = {
     if (data.durationMinutes !== undefined) formData.append('durationMinutes', String(data.durationMinutes));
     if (data.videoFile) formData.append('video', data.videoFile);
     if (data.subtitleFile) formData.append('subtitle', data.subtitleFile);
+    if (data.documentFile) formData.append('document', data.documentFile);
     return apiRequestFormData(`/lessons/${id}`, formData, 'PUT');
   },
 

@@ -71,12 +71,7 @@ router.post('/login', loginLimiter, [
     );
 
     // Set httpOnly cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
-    });
+    res.cookie('token', token, authCookieOptions);
 
     res.json({ user, token });
   } catch (error) {
@@ -88,15 +83,18 @@ router.post('/login', loginLimiter, [
   }
 });
 
+const authCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+};
+
 // Logout - clear cookie
 router.post('/logout', (req, res) => {
   // Note: We can't easily get user_id here without authenticateToken middleware
   // If you want to log logouts, add authenticateToken middleware to this route
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-  });
+  res.clearCookie('token', authCookieOptions);
   res.json({ message: 'Logged out successfully' });
 });
 
@@ -176,6 +174,7 @@ router.post('/signup', [
       [result.rows[0].id, 'REGISTER', 'user', result.rows[0].id, JSON.stringify({ email, role, fullName }), req.ip]
     );
 
+    res.cookie('token', responseData.token, authCookieOptions);
     res.status(201).json(responseData);
   } catch (error) {
     console.error('Unified signup error:', error);

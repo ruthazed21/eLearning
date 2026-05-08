@@ -34,9 +34,18 @@ export default function StudentDashboard() {
   const [statsData, setStatsData] = useState<any>(null);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [progressData, setProgressData] = useState<any[]>([]);
+  const [welcomeText, setWelcomeText] = useState('Welcome back');
 
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const justSignedUp = localStorage.getItem('justSignedUp');
+      if (justSignedUp === 'true') {
+        setWelcomeText('Welcome');
+        localStorage.removeItem('justSignedUp');
+      }
+    }
+
     if (user?.id) {
       fetchDashboardData(user.id);
     }
@@ -51,7 +60,7 @@ export default function StudentDashboard() {
         systemAPI.getStudentStats(),
         enrollmentsAPI.getByStudent(studentId),
         progressAPI.getByStudent(studentId),
-      ]);
+      ]) as [any, any[], any[]];
 
       setStatsData(stats);
       setEnrolledCourses(enrollments);
@@ -137,7 +146,7 @@ export default function StudentDashboard() {
         <div className="space-y-8">
           {/* Welcome Section - Clear hierarchy */}
           <div className="space-y-1">
-            <h1 className="text-4xl font-bold text-gray-900 tracking-tight">Welcome back, {user?.full_name?.split(' ')[0] || 'Student'}</h1>
+            <h1 className="text-4xl font-bold text-gray-900 tracking-tight">{welcomeText}, {user?.full_name?.split(' ')[0] || 'Student'}</h1>
             <p className="text-lg text-gray-500">Continue your learning journey</p>
           </div>
 

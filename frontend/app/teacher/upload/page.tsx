@@ -51,7 +51,9 @@ export default function UploadPage() {
     durationMinutes: 30,
   });
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   const [lessonSubmitting, setLessonSubmitting] = useState(false);
   const [lessonSuccess, setLessonSuccess] = useState('');
   const [lessonError, setLessonError] = useState('');
@@ -64,7 +66,7 @@ export default function UploadPage() {
     try {
       setLoadingCourses(true);
       const data = await coursesAPI.getTeacherCourses();
-      setCourses(data);
+      setCourses(data as any[]);
     } catch (err: any) {
       console.error('Failed to fetch courses:', err);
     } finally {
@@ -126,6 +128,11 @@ export default function UploadPage() {
     setVideoFile(file);
   };
 
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setDocumentFile(file);
+  };
+
   const handleLessonSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLessonError('');
@@ -139,14 +146,14 @@ export default function UploadPage() {
       setLessonError('Lesson title is required.');
       return;
     }
-    if (!videoFile) {
-      setLessonError('Please select a video file to upload.');
+    if (!videoFile && !documentFile) {
+      setLessonError('Please select either a video or document file to upload.');
       return;
     }
 
     try {
       setLessonSubmitting(true);
-      const existingLessons = await lessonsAPI.getByCourse(parseInt(lessonForm.courseId));
+      const existingLessons = await lessonsAPI.getByCourse(parseInt(lessonForm.courseId)) as any[];
       const orderIndex = existingLessons.length + 1;
 
       await lessonsAPI.create({
@@ -154,6 +161,7 @@ export default function UploadPage() {
         title: lessonForm.title.trim(),
         description: lessonForm.description.trim() || undefined,
         videoFile,
+        documentFile,
         orderIndex,
         durationMinutes: lessonForm.durationMinutes,
       });
@@ -161,7 +169,9 @@ export default function UploadPage() {
       setLessonSuccess('Lesson added successfully!');
       setLessonForm(prev => ({ ...prev, title: '', description: '', durationMinutes: 30 }));
       setVideoFile(null);
+      setDocumentFile(null);
       if (videoInputRef.current) videoInputRef.current.value = '';
+      if (documentInputRef.current) documentInputRef.current.value = '';
       setTimeout(() => setLessonSuccess(''), 4000);
     } catch (err: any) {
       setLessonError(err.message || 'Failed to add lesson. Please try again.');
@@ -452,7 +462,7 @@ export default function UploadPage() {
                   {/* Video file input */}
                   <div className="space-y-2">
                     <Label htmlFor="video-file">
-                      Video File <span className="text-red-500">*</span>
+                      Video File (Optional)
                     </Label>
                     <input
                       ref={videoInputRef}
@@ -467,6 +477,26 @@ export default function UploadPage() {
                         Selected: {videoFile.name} ({(videoFile.size / 1024 / 1024).toFixed(1)} MB)
                       </p>
                     )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="document-file">
+                      Lesson Document (Optional)
+                    </Label>
+                    <input
+                      ref={documentInputRef}
+                      id="document-file"
+                      type="file"
+                      accept=".pdf,.ppt,.pptx"
+                      onChange={handleDocumentChange}
+                      className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 border border-gray-300 rounded-md p-1 cursor-pointer"
+                    />
+                    {documentFile && (
+                      <p className="text-xs text-green-700">
+                        Selected: {documentFile.name} ({(documentFile.size / 1024 / 1024).toFixed(1)} MB)
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-400">Accepted formats: PDF, PPT, PPTX</p>
                   </div>
 
                   {/* Description */}

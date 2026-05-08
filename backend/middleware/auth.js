@@ -30,12 +30,14 @@ function normalizeUserPayload(decoded) {
 }
 
 const authenticateToken = (req, res, next) => {
+    const bearerToken = extractBearerToken(req.headers.authorization);
   const cookieToken =
     req.cookies?.token && String(req.cookies.token).trim()
       ? String(req.cookies.token).trim()
       : null;
-  const bearerToken = extractBearerToken(req.headers.authorization);
-  const token = cookieToken || bearerToken;
+
+  // Prefer explicit Authorization bearer tokens over any stale cookie token.
+  const token = bearerToken || cookieToken;
 
   if (!token) {
     return res.status(401).json({ error: 'Access token required' });

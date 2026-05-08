@@ -54,7 +54,10 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await authAPI.login(formData.email, formData.password);
+      const response = await authAPI.login(formData.email, formData.password) as {
+        token: string;
+        user: { id: number; email: string; role: 'admin' | 'student' | 'teacher'; full_name: string; }
+      };
 
       // Store auth data
       login(response.token, response.user);
@@ -116,7 +119,7 @@ export default function LoginPage() {
               {loginError && (
                 <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4" role="alert">
                   <p className={`${textSize} text-red-800 flex items-start gap-2`}>
-                    <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" aria-hidden="true" />
+                    <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" aria-hidden="true" />
                     <span>{loginError}</span>
                   </p>
                 </div>

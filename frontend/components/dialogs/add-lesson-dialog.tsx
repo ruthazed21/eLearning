@@ -31,6 +31,7 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
   const [description, setDescription] = useState('');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [subtitleFile, setSubtitleFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -42,6 +43,11 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
   const handleSubtitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
     setSubtitleFile(file);
+  };
+
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setDocumentFile(file);
   };
 
   const clearVideo = () => {
@@ -58,6 +64,12 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
     if (input) input.value = '';
   };
 
+  const clearDocument = () => {
+    setDocumentFile(null);
+    const input = document.getElementById('add-document') as HTMLInputElement;
+    if (input) input.value = '';
+  };
+
   const resetForm = () => {
     setTitle('');
     setDuration('');
@@ -65,6 +77,7 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
     setDescription('');
     setVideoFile(null);
     setSubtitleFile(null);
+    setDocumentFile(null);
     setError('');
   };
 
@@ -72,6 +85,12 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
     e.preventDefault();
     setIsSubmitting(true);
     setError('');
+
+    if (!videoFile && !documentFile) {
+      setError('Please upload either a lesson video or a document.');
+      setIsSubmitting(false);
+      return;
+    }
 
     try {
       const data = await lessonsAPI.create({
@@ -82,6 +101,7 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
         durationMinutes: parseInt(duration) || 0,
         videoFile: videoFile ?? null,
         subtitleFile: subtitleFile ?? null,
+        documentFile: documentFile ?? null,
       });
 
       onAdd(data);
@@ -97,7 +117,7 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
 
   return (
     <Dialog open={open} onOpenChange={(open) => { if (!open) resetForm(); onOpenChange(open); }}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-125">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add New Lesson</DialogTitle>
@@ -220,6 +240,40 @@ export function AddLessonDialog({ courseId, open, onOpenChange, onAdd, nextOrder
                 </label>
               )}
               <p className="text-xs text-gray-400">Accepted format: VTT (WebVTT) files for accessibility</p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="add-document">Lesson Document (Optional)</Label>
+              {documentFile ? (
+                <div className="flex items-center gap-2 p-2 bg-gray-50 border rounded-md">
+                  <Upload className="h-4 w-4 text-gray-500 shrink-0" aria-hidden="true" />
+                  <span className="text-sm text-gray-700 truncate flex-1">{documentFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={clearDocument}
+                    className="text-gray-400 hover:text-gray-600"
+                    aria-label="Remove selected document file"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="add-document"
+                  className="flex items-center gap-2 p-2 border border-dashed rounded-md cursor-pointer hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  <span className="text-sm text-gray-500">Click to upload a document</span>
+                  <Input
+                    id="add-document"
+                    type="file"
+                    accept=".pdf,.ppt,.pptx"
+                    className="hidden"
+                    onChange={handleDocumentChange}
+                  />
+                </label>
+              )}
+              <p className="text-xs text-gray-400">Accepted formats: PDF, PPT, PPTX</p>
             </div>
           </div>
           <DialogFooter>

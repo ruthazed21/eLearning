@@ -343,7 +343,7 @@ export default function TeacherDashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[100px]">
+                          <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-25">
                             <div
                               className="bg-blue-600 h-2 rounded-full"
                               style={{ width: `${course.completion}%` }}
