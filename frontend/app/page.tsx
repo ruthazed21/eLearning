@@ -364,7 +364,7 @@ export default function Home() {
                 Start Learning Today
               </h2>
               <p className={`${accessibilityMode === 'blind' ? 'text-3xl' : 'text-2xl'} mb-10 opacity-90`}>
-                Join Bahir Dar University students learning without barriers
+                Students learning without barriers
               </p>
               <div className="flex flex-col sm:flex-row gap-6 justify-center">
                 <Link href="/auth/signup">

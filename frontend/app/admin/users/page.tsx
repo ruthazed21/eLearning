@@ -65,7 +65,7 @@ export default function AdminUsersPage() {
       setError('');
       const data = await usersAPI.getAll();
       setUsers(
-        data.map((u: any) => ({
+        (Array.isArray(data) ? data : []).map((u: any) => ({
           id: u.id,
           name: u.full_name,
           email: u.email,

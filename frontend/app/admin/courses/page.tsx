@@ -111,7 +111,7 @@ export default function AdminCoursesPage() {
       setLoading(true);
       setError('');
       const data = await coursesAPI.getAll();
-      setCourses(data.map(mapApiCourse));
+      setCourses(Array.isArray(data) ? data.map(mapApiCourse) : []);
     } catch (err: any) {
       console.error('Failed to fetch courses:', err);
       setError(err.message || 'Failed to load courses');

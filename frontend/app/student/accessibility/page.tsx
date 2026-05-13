@@ -111,9 +111,9 @@ export default function StudentAccessibilityPage() {
       setError('');
       const data = await feedbackAPI.getByUser(userId);
       // Filter for accessibility-related feedback
-      const accessibilityReports = data.filter(
+      const accessibilityReports = Array.isArray(data) ? data.filter(
         (item: any) => item.category === 'accessibility'
-      );
+      ) : [];
       setReports(accessibilityReports);
     } catch (err: any) {
       console.error('Failed to fetch reports:', err);

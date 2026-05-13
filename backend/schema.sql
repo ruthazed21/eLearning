@@ -35,6 +35,8 @@ CREATE TABLE users (
     -- Profile fields
     profile_picture_url TEXT,
     phone VARCHAR(20),
+    reset_code VARCHAR(10),
+    reset_code_expires_at TIMESTAMP,
     
     -- Constraints
     CONSTRAINT student_fields_check CHECK (

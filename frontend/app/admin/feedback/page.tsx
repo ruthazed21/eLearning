@@ -120,7 +120,7 @@ export default function AdminFeedbackPage() {
       setLoading(true);
       setError('');
       const data = await feedbackAPI.getAll();
-      setFeedbacks(data.map(mapApiToFeedback));
+      setFeedbacks(Array.isArray(data) ? data.map(mapApiToFeedback) : []);
     } catch (err: any) {
       console.error('Failed to fetch feedback:', err);
       setError(err.message || 'Failed to load feedback');

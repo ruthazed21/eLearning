@@ -92,22 +92,28 @@ export default function AdminDashboard() {
         coursesAPI.getAll()
       ]);
 
+      const users = Array.isArray(usersData) ? usersData : [];
+      const courses = Array.isArray(coursesData) ? coursesData : [];
+
       // Try to get stats from dedicated endpoint, fall back to deriving from data
       let statsData = {
-        totalUsers: usersData.length,
-        totalCourses: coursesData.length,
-        activeStudents: usersData.filter((u: any) => u.role === 'student' && u.approval_status === 'approved').length,
+        totalUsers: users.length,
+        totalCourses: courses.length,
+        activeStudents: users.filter((u: any) => u.role === 'student' && u.approval_status === 'approved').length,
         platformGrowth: '+0%'
       };
 
       try {
         const statsResponse = await systemAPI.getStats();
-        statsData = {
-          totalUsers: statsResponse.totalUsers ?? statsData.totalUsers,
-          totalCourses: statsResponse.totalCourses ?? statsData.totalCourses,
-          activeStudents: statsResponse.activeStudents ?? statsData.activeStudents,
-          platformGrowth: statsResponse.platformGrowth ?? statsData.platformGrowth
-        };
+        if (statsResponse && typeof statsResponse === 'object') {
+          const stats = statsResponse as any;
+          statsData = {
+            totalUsers: stats.totalUsers ?? statsData.totalUsers,
+            totalCourses: stats.totalCourses ?? statsData.totalCourses,
+            activeStudents: stats.activeStudents ?? statsData.activeStudents,
+            platformGrowth: stats.platformGrowth ?? statsData.platformGrowth
+          };
+        }
       } catch (statsErr) {
         console.warn('Stats endpoint unavailable, using derived stats:', statsErr);
       }
@@ -115,7 +121,7 @@ export default function AdminDashboard() {
       setStats(statsData);
 
       // Set recent users (last 5)
-      const sortedUsers = [...usersData].sort((a: any, b: any) =>
+      const sortedUsers = [...users].sort((a: any, b: any) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       setRecentUsers(sortedUsers.slice(0, 4).map((u: any) => ({
@@ -128,7 +134,7 @@ export default function AdminDashboard() {
       })));
 
       // Set recent courses (last 4)
-      const sortedCourses = [...coursesData].sort((a: any, b: any) =>
+      const sortedCourses = [...courses].sort((a: any, b: any) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       setRecentCourses(sortedCourses.slice(0, 4).map((c: any) => ({

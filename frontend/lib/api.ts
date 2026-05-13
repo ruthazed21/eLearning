@@ -385,6 +385,27 @@ export const authAPI = {
     assertAuthPayload(res);
     return res;
   },
+
+  resetPassword: async (email: string, newPassword: string) => {
+    return apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, newPassword }),
+    });
+  },
+
+  requestPasswordReset: async (email: string) => {
+    return apiRequest('/auth/request-password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  confirmPasswordReset: async (email: string, code: string, newPassword: string) => {
+    return apiRequest('/auth/confirm-password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, newPassword }),
+    });
+  },
 };
 
 // Users API

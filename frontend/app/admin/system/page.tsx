@@ -106,7 +106,8 @@ export default function AdminAuditLogPage() {
         auditAPI.getStats(Object.keys(statsParams).length > 0 ? statsParams : undefined),
       ]);
 
-      const mapped: AuditLog[] = logsData.map((log: any) => ({
+      const logs = Array.isArray(logsData) ? logsData : [];
+      const mapped: AuditLog[] = logs.map((log: any) => ({
         id: log.id,
         timestamp: new Date(log.created_at).toLocaleString(),
         user: log.full_name || log.email || 'System',
@@ -125,10 +126,11 @@ export default function AdminAuditLogPage() {
 
       // statsData is an array of rows grouped by action
       // Each row has: total_logs, unique_users, unique_actions, action, action_count
-      if (statsData && statsData.length > 0) {
-        const totalLogs = parseInt(statsData[0].total_logs) || 0;
-        const uniqueUsers = parseInt(statsData[0].unique_users) || 0;
-        const uniqueActions = parseInt(statsData[0].unique_actions) || 0;
+      const stats = Array.isArray(statsData) ? statsData : [];
+      if (stats && stats.length > 0) {
+        const totalLogs = parseInt((stats[0] as any).total_logs) || 0;
+        const uniqueUsers = parseInt((stats[0] as any).unique_users) || 0;
+        const uniqueActions = parseInt((stats[0] as any).unique_actions) || 0;
         const adminActions = mapped.filter(l => l.userRole === 'Admin').length;
         setStats({ totalLogs, uniqueUsers, uniqueActions, adminActions });
       } else {
