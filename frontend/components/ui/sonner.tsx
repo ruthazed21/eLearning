@@ -1,15 +1,12 @@
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme="dark"
       className="toaster group"
       icons={{
         success: (
@@ -48,7 +45,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           error: "group toast group-[.toaster]:!bg-red-500 group-[.toaster]:!text-white group-[.toaster]:!border-red-600",
           success: "group toast group-[.toaster]:!bg-green-500 group-[.toaster]:!text-white group-[.toaster]:!border-green-600",
           warning: "group toast group-[.toaster]:!bg-amber-500 group-[.toaster]:!text-white group-[.toaster]:!border-amber-600",
-          info: "group toast group-[.toaster]:!bg-blue-500 group-[.toaster]:!text-white group-[.toaster]:!border-blue-600",
+          info: "group toast group-[.toaster]:!bg-[#facc15] group-[.toaster]:!text-[#0f0f0f] group-[.toaster]:!border-[#ca8a04]",
         },
       }}
       {...props}

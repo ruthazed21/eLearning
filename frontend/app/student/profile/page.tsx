@@ -47,7 +47,7 @@ export default function StudentProfilePage() {
     if (!user) return;
     try {
       setLoading(true);
-      const userData = await usersAPI.getById(user.id);
+      const userData = (await usersAPI.getById(user.id)) as any;
       setProfile(userData);
       setFormData(prev => ({
         ...prev,

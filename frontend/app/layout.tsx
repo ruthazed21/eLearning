@@ -22,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="font-sans antialiased">
+    <html lang="en" className={`${inter.variable} dark`} suppressHydrationWarning>
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         <AuthProvider>
           <TooltipProvider>
             {children}

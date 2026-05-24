@@ -6,7 +6,7 @@ TRUNCATE TABLE quiz_attempts, quiz_options, quiz_questions, quizzes, lesson_prog
 -- 1. Create a Teacher User (Password: teacher123)
 INSERT INTO users (email, password_hash, role, full_name, department, bio, approval_status)
 VALUES 
-('teacher@eduaccess.com', '$2a$10$vI8tmv9s08C7y3R8kU8Bf.V5gH4m7D7tC7U7r7G7F7E7D7C7B7A7', 'teacher', 'Dr. Sarah Smith', 'Computer Science', 'Expert in Web Development and Accessibility.', 'approved')
+('teacher@eduaccess.com', '$2a$10$pjgoA/y9JRV87rYM3QTdSe3YBGYYw12D9kvi291pWVMiJBs7hmPSq', 'teacher', 'Dr. Sarah Smith', 'Computer Science', 'Expert in Web Development and Accessibility.', 'approved')
 ON CONFLICT (email) DO NOTHING;
 
 -- 2. Create Sample Courses

@@ -39,7 +39,7 @@ export default function QuizPage() {
       if (quizIdParam) {
         quizData = await quizzesAPI.getById(parseInt(quizIdParam));
       } else if (courseIdParam) {
-        const quizzes = await quizzesAPI.getByCourse(parseInt(courseIdParam));
+        const quizzes = (await quizzesAPI.getByCourse(parseInt(courseIdParam))) as any[];
         if (quizzes && quizzes.length > 0) {
           quizData = await quizzesAPI.getById(quizzes[0].id);
         }

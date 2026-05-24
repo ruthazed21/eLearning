@@ -7,14 +7,16 @@ const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
 
-// Login-specific rate limiter: 5 attempts per 15 minutes
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
-  message: { error: 'Too many login attempts, please try again after 15 minutes' },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
+// Login-specific rate limiter: disabled in development, otherwise 5 attempts per 15 minutes
+const loginLimiter = process.env.NODE_ENV === 'development'
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 5,
+      message: { error: 'Too many login attempts, please try again after 15 minutes' },
+      standardHeaders: true,
+      legacyHeaders: false,
+    });
 
 // Generate JWT token (role normalized for consistent roleCheck / middleware)
 const generateToken = (user) => {
@@ -54,6 +56,14 @@ router.post('/login', loginLimiter, [
     }
 
     const user = result.rows[0];
+
+    // Check approval status
+    if (user.approval_status === 'pending') {
+      return res.status(403).json({ error: 'Your account is pending approval' });
+    }
+    if (user.approval_status === 'rejected') {
+      return res.status(403).json({ error: 'Your account has been rejected' });
+    }
 
     // Verify password
     const validPassword = await bcrypt.compare(password, user.password_hash);
@@ -184,9 +194,9 @@ router.post('/signup', [
     } else {
       const { department, bio } = extraFields;
       result = await pool.query(
-        `INSERT INTO users (email, password_hash, role, full_name, department, bio)
-         VALUES ($1, $2, 'teacher', $3, $4, $5)
-         RETURNING id, email, role, full_name, department`,
+        `INSERT INTO users (email, password_hash, role, full_name, department, bio, approval_status)
+         VALUES ($1, $2, 'teacher', $3, $4, $5, 'pending')
+         RETURNING id, email, role, full_name, department, approval_status`,
         [email, passwordHash, fullName, department, bio || null]
       );
     }

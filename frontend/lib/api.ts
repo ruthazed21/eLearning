@@ -208,7 +208,13 @@ async function apiRequest(endpoint: string, options: RequestInit = {}) {
     }
 
     if (response.status === 401) {
+      if (endpoint.includes('/auth/login')) {
+        throw new Error(errMsg);
+      }
       clearAuth();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
       throw new Error(
         errMsg.includes('token') || errMsg.includes('Access token')
           ? errMsg
@@ -287,7 +293,13 @@ async function apiRequestFormData(endpoint: string, formData: FormData, method =
     }
 
     if (response.status === 401) {
+      if (endpoint.includes('/auth/login')) {
+        throw new Error(errMsg);
+      }
       clearAuth();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('auth:unauthorized'));
+      }
       throw new Error(
         errMsg.includes('token') || errMsg.includes('Access token')
           ? errMsg

@@ -1,11 +1,42 @@
 const express = require('express');
 const router = express.Router();
 const path = require('path');
+const fs = require('fs');
 const multer = require('multer');
 const { body, validationResult } = require('express-validator');
 const pool = require('../db/connection');
 const authenticateToken = require('../middleware/auth');
 const checkRole = require('../middleware/roleCheck');
+const {
+  extractTextFromPdf,
+  extractTextFromPptx,
+  generateTtsAudio,
+  generateSubtitlesAndTranscript
+} = require('../utils/accessibility');
+
+// Helper to parse VTT content to plain text transcript
+function parseVttToTranscript(vttText) {
+  return vttText
+    .replace(/WEBVTT[\s\S]*?\n\n/, '') // remove header
+    .replace(/\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}/g, '') // remove long timestamps
+    .replace(/\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}\.\d{3}/g, '') // remove short timestamps
+    .replace(/^\d+$/gm, '') // remove cue numbers if any
+    .replace(/\r?\n+/g, '\n') // remove empty lines
+    .trim();
+}
+
+// Helper to delete local file safely
+const deleteLocalFile = (filePath) => {
+  if (!filePath) return;
+  try {
+    const fullPath = path.join(__dirname, '..', filePath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  } catch (err) {
+    console.error(`Failed to delete old file: ${filePath}`, err);
+  }
+};
 
 // Configure multer for video and subtitle uploads
 const storage = multer.diskStorage({
@@ -146,11 +177,87 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
       }
     }
 
+    let extractedText = null;
+    let finalAudioUrl = null;
+    let transcript = null;
+
+    // Process Document for Blind accessibility (Text extraction & TTS)
+    if (finalDocumentUrl) {
+      try {
+        const fullDocPath = path.join(__dirname, '..', finalDocumentUrl);
+        const lowerName = finalDocumentUrl.toLowerCase();
+        let extracted = '';
+        
+        if (lowerName.endsWith('.pdf')) {
+          extracted = await extractTextFromPdf(fullDocPath);
+        } else if (lowerName.endsWith('.pptx')) {
+          extracted = await extractTextFromPptx(fullDocPath);
+        } else {
+          extracted = `Lesson Document content reference: ${title}`;
+        }
+
+        extractedText = extracted || `Content from ${path.basename(finalDocumentUrl)}`;
+        
+        // Generate SAPI WAV TTS audio file
+        const uniqueAudioName = `audio-${Date.now()}-${Math.round(Math.random() * 1e9)}.wav`;
+        const audioPath = path.join(__dirname, '../uploads/audios', uniqueAudioName);
+        
+        const audioDir = path.dirname(audioPath);
+        if (!fs.existsSync(audioDir)) {
+          fs.mkdirSync(audioDir, { recursive: true });
+        }
+
+        // Limit length of text to speak to prevent power shell hangs
+        const ttsText = extractedText.length > 3000
+          ? extractedText.substring(0, 2997) + '...'
+          : extractedText;
+
+        await generateTtsAudio(ttsText, audioPath);
+        finalAudioUrl = `/uploads/audios/${uniqueAudioName}`;
+      } catch (docErr) {
+        console.error('Error processing uploaded document for accessibility:', docErr);
+      }
+    }
+
+    // Process Video for Deaf accessibility (Automatic Captions / STT simulation)
+    if (finalVideoUrl) {
+      if (finalSubtitleUrl) {
+        // Parse uploaded subtitles for transcript
+        try {
+          const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
+          if (fs.existsSync(fullSubPath)) {
+            const vttText = fs.readFileSync(fullSubPath, 'utf8');
+            transcript = parseVttToTranscript(vttText);
+          }
+        } catch (subErr) {
+          console.error('Error reading manual subtitle file:', subErr);
+        }
+      } else {
+        // Generate automatic subtitle VTT file and transcript
+        try {
+          const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
+          const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+          
+          const stt = generateSubtitlesAndTranscript(title, description, subtitlePath);
+          finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
+          transcript = stt.transcript;
+        } catch (sttErr) {
+          console.error('Error generating automated subtitles:', sttErr);
+        }
+      }
+    }
+
     const result = await pool.query(
-      `INSERT INTO lessons (course_id, title, description, content, video_url, subtitle_url, document_url, order_index, duration_minutes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO lessons (
+         course_id, title, description, content, video_url, subtitle_url, 
+         document_url, order_index, duration_minutes, audio_url, extracted_text, transcript
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
-      [courseId, title, description || null, content || null, finalVideoUrl, finalSubtitleUrl, finalDocumentUrl, orderIndex, durationMinutes || null]
+      [
+        courseId, title, description || null, content || null, finalVideoUrl, finalSubtitleUrl, 
+        finalDocumentUrl, orderIndex, durationMinutes || null, finalAudioUrl, extractedText, transcript
+      ]
     );
 
     res.status(201).json(result.rows[0]);
@@ -179,7 +286,7 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
     const { title, description, content, videoUrl, subtitleUrl, documentUrl, orderIndex, durationMinutes } = req.body;
 
     const existingLesson = await pool.query(
-      'SELECT video_url, subtitle_url, document_url FROM lessons WHERE id = $1',
+      'SELECT title, description, video_url, subtitle_url, document_url, audio_url, extracted_text, transcript FROM lessons WHERE id = $1',
       [id]
     );
 
@@ -187,10 +294,15 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
+    const lessonData = existingLesson.rows[0];
+
     // Handle uploaded files and preserve current media if no new file is provided.
-    let finalVideoUrl = existingLesson.rows[0].video_url;
-    let finalSubtitleUrl = existingLesson.rows[0].subtitle_url;
-    let finalDocumentUrl = existingLesson.rows[0].document_url;
+    let finalVideoUrl = lessonData.video_url;
+    let finalSubtitleUrl = lessonData.subtitle_url;
+    let finalDocumentUrl = lessonData.document_url;
+    let finalAudioUrl = lessonData.audio_url;
+    let extractedText = lessonData.extracted_text;
+    let transcript = lessonData.transcript;
 
     if (videoUrl !== undefined) {
       finalVideoUrl = videoUrl;
@@ -202,15 +314,29 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
       finalDocumentUrl = documentUrl;
     }
 
+    let docChanged = false;
+    let videoChanged = false;
+    let subtitleChanged = false;
+
     if (req.files) {
       if (req.files.video && req.files.video[0]) {
+        // Delete old video file
+        deleteLocalFile(lessonData.video_url);
         finalVideoUrl = `/uploads/videos/${req.files.video[0].filename}`;
+        videoChanged = true;
       }
       if (req.files.subtitle && req.files.subtitle[0]) {
+        // Delete old subtitle file
+        deleteLocalFile(lessonData.subtitle_url);
         finalSubtitleUrl = `/uploads/subtitles/${req.files.subtitle[0].filename}`;
+        subtitleChanged = true;
       }
       if (req.files.document && req.files.document[0]) {
+        // Delete old document & TTS files
+        deleteLocalFile(lessonData.document_url);
+        deleteLocalFile(lessonData.audio_url);
         finalDocumentUrl = `/uploads/documents/${req.files.document[0].filename}`;
+        docChanged = true;
       }
     }
 
@@ -231,6 +357,72 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
       }
     }
 
+    // Re-extract document text and generate TTS if new document was uploaded
+    if (docChanged && finalDocumentUrl) {
+      try {
+        const fullDocPath = path.join(__dirname, '..', finalDocumentUrl);
+        const lowerName = finalDocumentUrl.toLowerCase();
+        let extracted = '';
+
+        if (lowerName.endsWith('.pdf')) {
+          extracted = await extractTextFromPdf(fullDocPath);
+        } else if (lowerName.endsWith('.pptx')) {
+          extracted = await extractTextFromPptx(fullDocPath);
+        } else {
+          extracted = `Lesson Document content reference: ${title || lessonData.title}`;
+        }
+
+        extractedText = extracted || `Content from ${path.basename(finalDocumentUrl)}`;
+
+        const uniqueAudioName = `audio-${Date.now()}-${Math.round(Math.random() * 1e9)}.wav`;
+        const audioPath = path.join(__dirname, '../uploads/audios', uniqueAudioName);
+
+        const ttsText = extractedText.length > 3000
+          ? extractedText.substring(0, 2997) + '...'
+          : extractedText;
+
+        await generateTtsAudio(ttsText, audioPath);
+        finalAudioUrl = `/uploads/audios/${uniqueAudioName}`;
+      } catch (docErr) {
+        console.error('Error re-processing document for accessibility:', docErr);
+      }
+    }
+
+    // Re-generate subtitles and transcript if video/subtitles changed, or if title/description changed
+    const titleOrDescChanged = (title !== undefined && title !== lessonData.title) || 
+                               (description !== undefined && description !== lessonData.description);
+    
+    if (videoChanged || subtitleChanged || (titleOrDescChanged && finalVideoUrl)) {
+      if (subtitleChanged || (finalSubtitleUrl && !subtitleChanged && !videoChanged)) {
+        // Parse uploaded subtitles for transcript
+        try {
+          const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
+          if (fs.existsSync(fullSubPath)) {
+            const vttText = fs.readFileSync(fullSubPath, 'utf8');
+            transcript = parseVttToTranscript(vttText);
+          }
+        } catch (subErr) {
+          console.error('Error reading manual subtitle file:', subErr);
+        }
+      } else if (finalVideoUrl && (!finalSubtitleUrl || (titleOrDescChanged && finalSubtitleUrl.includes('/uploads/subtitles/subtitle-')))) {
+        // Regenerate automated subtitles & transcript
+        try {
+          deleteLocalFile(finalSubtitleUrl); // delete old auto subtitle file
+          const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
+          const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+
+          const updatedTitle = title !== undefined ? title : lessonData.title;
+          const updatedDesc = description !== undefined ? description : lessonData.description;
+
+          const stt = generateSubtitlesAndTranscript(updatedTitle, updatedDesc, subtitlePath);
+          finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
+          transcript = stt.transcript;
+        } catch (sttErr) {
+          console.error('Error re-generating automated subtitles:', sttErr);
+        }
+      }
+    }
+
     const result = await pool.query(
       `UPDATE lessons 
        SET title = COALESCE($1, title),
@@ -239,12 +431,18 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
            video_url = COALESCE($4, video_url),
            subtitle_url = COALESCE($5, subtitle_url),
            document_url = COALESCE($6, document_url),
-           order_index = COALESCE($7, order_index),
-           duration_minutes = COALESCE($8, duration_minutes),
+           audio_url = COALESCE($7, audio_url),
+           extracted_text = COALESCE($8, extracted_text),
+           transcript = COALESCE($9, transcript),
+           order_index = COALESCE($10, order_index),
+           duration_minutes = COALESCE($11, duration_minutes),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $9
+       WHERE id = $12
        RETURNING *`,
-      [title, description, content, finalVideoUrl, finalSubtitleUrl, finalDocumentUrl, orderIndex, durationMinutes, id]
+      [
+        title, description, content, finalVideoUrl, finalSubtitleUrl, finalDocumentUrl, 
+        finalAudioUrl, extractedText, transcript, orderIndex, durationMinutes, id
+      ]
     );
 
     if (result.rows.length === 0) {
@@ -262,6 +460,18 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
 router.delete('/:id', authenticateToken, checkRole('teacher', 'admin'), async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Fetch existing files first to delete them
+    const existing = await pool.query(
+      'SELECT video_url, subtitle_url, document_url, audio_url FROM lessons WHERE id = $1',
+      [id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    const lessonData = existing.rows[0];
 
     // Check course ownership for teachers
     if (req.user.role === 'teacher') {
@@ -281,6 +491,12 @@ router.delete('/:id', authenticateToken, checkRole('teacher', 'admin'), async (r
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Lesson not found' });
     }
+
+    // Clean up local files
+    deleteLocalFile(lessonData.video_url);
+    deleteLocalFile(lessonData.subtitle_url);
+    deleteLocalFile(lessonData.document_url);
+    deleteLocalFile(lessonData.audio_url);
 
     res.json({ message: 'Lesson deleted successfully' });
   } catch (error) {

@@ -23,6 +23,7 @@ export default function PublicHeader() {
   const handleModeChange = (mode: AccessibilityMode) => {
     setAccessibilityMode(mode);
     localStorage.setItem('accessibilityMode', mode);
+    window.dispatchEvent(new CustomEvent('accessibility-mode-change', { detail: mode }));
     
     const announcement = mode === 'blind' 
       ? 'Blind mode activated. High contrast theme enabled with enhanced screen reader support and 20 pixel base font size.'

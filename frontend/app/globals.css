@@ -4,7 +4,59 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
+@theme {
+  /* Yellow accent scale */
+  --color-yellow-300: var(--app-primary-hover);
+  --color-yellow-400: var(--app-primary);
+  --color-yellow-500: var(--app-primary-hover);
+  --color-yellow-600: #ca8a04;
+
+  /* Map legacy blue utility classes to yellow primary */
+  --color-blue-50: var(--app-card);
+  --color-blue-100: var(--app-card);
+  --color-blue-200: var(--app-border);
+  --color-blue-300: var(--app-border);
+  --color-blue-400: var(--app-primary);
+  --color-blue-500: var(--app-primary);
+  --color-blue-600: var(--app-primary);
+  --color-blue-700: var(--app-primary-hover);
+  --color-blue-800: #ca8a04;
+  --color-blue-900: var(--app-background);
+
+  /* Slate / gray → theme tokens */
+  --color-slate-950: var(--app-background);
+  --color-slate-900: var(--app-card);
+  --color-slate-800: var(--app-card);
+  --color-slate-700: var(--app-border);
+  --color-slate-600: var(--app-text-secondary);
+  --color-slate-500: var(--app-text-secondary);
+  --color-slate-400: var(--app-text-secondary);
+  --color-slate-300: var(--app-border);
+  --color-slate-200: var(--app-border);
+  --color-slate-100: var(--app-card);
+
+  --color-black: var(--app-background);
+  --color-white: var(--app-text);
+
+  --color-gray-950: var(--app-background);
+  --color-gray-900: var(--app-text);
+  --color-gray-800: var(--app-text-secondary);
+  --color-gray-700: var(--app-text-secondary);
+  --color-gray-600: var(--app-text-secondary);
+  --color-gray-500: var(--app-text-secondary);
+  --color-gray-400: var(--app-text-secondary);
+  --color-gray-300: var(--app-border);
+  --color-gray-200: var(--app-border);
+  --color-gray-100: var(--app-card);
+  --color-gray-50: var(--app-card);
+
+  --color-red-600: var(--app-error);
+  --color-red-500: var(--app-error);
+  --color-green-600: var(--app-success);
+  --color-green-500: var(--app-success);
+  --color-amber-500: var(--app-primary);
+  --color-amber-600: #ca8a04;
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -47,88 +99,131 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Modern black & yellow — default theme */
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --app-background: #0f0f0f;
+  --app-card: #1a1a1a;
+  --app-navbar: #1a1a1a;
+  --app-primary: #facc15;
+  --app-primary-hover: #fde047;
+  --app-primary-foreground: #0f0f0f;
+  --app-secondary: #ca8a04;
+  --app-text: #ffffff;
+  --app-text-secondary: #d1d5db;
+  --app-border: #2a2a2a;
+  --app-error: #f87171;
+  --app-success: #4ade80;
+
+  --background: #0f0f0f;
+  --foreground: #ffffff;
+  --card: #1a1a1a;
+  --card-foreground: #ffffff;
+  --popover: #1a1a1a;
+  --popover-foreground: #ffffff;
+  --primary: #facc15;
+  --primary-foreground: #0f0f0f;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+  --muted: #1a1a1a;
+  --muted-foreground: #d1d5db;
+  --accent: #262626;
+  --accent-foreground: #facc15;
+  --destructive: #f87171;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #facc15;
+
+  --chart-1: #facc15;
+  --chart-2: #4ade80;
+  --chart-3: #f87171;
+  --chart-4: #fde047;
+  --chart-5: #d1d5db;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #1a1a1a;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #facc15;
+  --sidebar-primary-foreground: #0f0f0f;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #facc15;
+  --sidebar-border: #2a2a2a;
+  --sidebar-ring: #facc15;
 }
 
+/* Blind accessibility — slightly stronger contrast */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0.00 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --app-background: #0f0f0f;
+  --app-card: #1a1a1a;
+  --app-navbar: #141414;
+  --app-primary: #facc15;
+  --app-primary-hover: #fde047;
+  --app-primary-foreground: #0f0f0f;
+  --app-secondary: #ca8a04;
+  --app-text: #ffffff;
+  --app-text-secondary: #e5e7eb;
+  --app-border: #333333;
+  --app-error: #fca5a5;
+  --app-success: #86efac;
+
+  --background: #0f0f0f;
+  --foreground: #ffffff;
+  --card: #1a1a1a;
+  --card-foreground: #ffffff;
+  --popover: #1a1a1a;
+  --popover-foreground: #ffffff;
+  --primary: #facc15;
+  --primary-foreground: #0f0f0f;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ffffff;
+  --muted: #1a1a1a;
+  --muted-foreground: #e5e7eb;
+  --accent: #262626;
+  --accent-foreground: #facc15;
+  --destructive: #fca5a5;
+  --border: #333333;
+  --input: #333333;
+  --ring: #facc15;
+
+  --chart-1: #facc15;
+  --chart-2: #86efac;
+  --chart-3: #fca5a5;
+  --chart-4: #fde047;
+  --chart-5: #e5e7eb;
+  --sidebar: #141414;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #facc15;
+  --sidebar-primary-foreground: #0f0f0f;
+  --sidebar-accent: #262626;
+  --sidebar-accent-foreground: #facc15;
+  --sidebar-border: #333333;
+  --sidebar-ring: #facc15;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-color: var(--app-background);
+    color: var(--app-text);
+  }
+  ::selection {
+    background-color: rgba(250, 204, 21, 0.35);
+    color: #ffffff;
+  }
+  a {
+    color: var(--app-primary);
+  }
+  a:hover {
+    color: var(--app-primary-hover);
   }
 }
 
-/* Custom animations for glassmorphism landing page */
+/* Landing page animations */
 @keyframes pulse-slow {
   0%, 100% {
     opacity: 0.3;
@@ -150,4 +245,281 @@
 
 .delay-2000 {
   animation-delay: 2s;
+}
+
+/* ==========================================
+   Black & yellow theme — global overrides
+   Maps legacy light-mode classes across pages
+   ========================================== */
+
+/* Page backgrounds */
+body,
+.bg-white,
+.bg-gray-50,
+.bg-gray-100,
+.bg-slate-50,
+.bg-slate-100,
+.bg-slate-950,
+.bg-black,
+[class*="bg-slate-950"],
+[class*="bg-black"] {
+  background-color: var(--app-background) !important;
+}
+
+/* Cards, panels, tables */
+.bg-white\/5,
+.bg-white\/10,
+.bg-slate-900,
+.bg-slate-800,
+.bg-slate-900\/50,
+.bg-slate-950\/50,
+[class*="bg-white"] {
+  background-color: var(--app-card) !important;
+}
+
+/* Nav / header / sidebar shells */
+header,
+nav,
+aside,
+[data-slot="sidebar"] {
+  background-color: var(--app-navbar) !important;
+  border-color: var(--app-border) !important;
+}
+
+/* Primary yellow accents — keep yellow, do not remap to blue */
+.bg-yellow-400,
+.bg-yellow-500,
+.bg-blue-600,
+.bg-blue-700,
+.bg-blue-500 {
+  background-color: var(--app-primary) !important;
+  color: var(--app-primary-foreground) !important;
+}
+
+.hover\:bg-yellow-300:hover,
+.hover\:bg-yellow-400:hover,
+.hover\:bg-blue-700:hover,
+.hover\:bg-blue-600:hover {
+  background-color: var(--app-primary-hover) !important;
+  color: var(--app-primary-foreground) !important;
+}
+
+.text-yellow-400,
+.text-yellow-500,
+.text-yellow-600,
+.text-blue-600,
+.text-blue-700,
+.text-blue-800 {
+  color: var(--app-primary) !important;
+}
+
+.border-yellow-400,
+.border-yellow-500,
+.border-blue-600,
+.border-blue-200,
+.border-blue-100 {
+  border-color: var(--app-primary) !important;
+}
+
+.bg-yellow-600,
+.bg-yellow-950,
+.bg-blue-50,
+.bg-blue-100 {
+  background-color: color-mix(in srgb, var(--app-primary) 12%, var(--app-card)) !important;
+  color: var(--app-primary) !important;
+}
+
+.bg-yellow-950\/20,
+.bg-yellow-400\/10,
+.bg-blue-50\/50 {
+  background-color: color-mix(in srgb, var(--app-primary) 8%, var(--app-card)) !important;
+}
+
+/* Main text — force light on dark surfaces */
+.text-white,
+.text-slate-900,
+.text-slate-950,
+.text-gray-900,
+.text-black {
+  color: var(--app-text) !important;
+}
+
+.text-white\/90,
+.text-white\/80 {
+  color: var(--app-text) !important;
+}
+
+.text-white\/70,
+.text-white\/60,
+.text-slate-600,
+.text-slate-500,
+.text-gray-500,
+.text-gray-600,
+.text-gray-700,
+.text-gray-400 {
+  color: var(--app-text-secondary) !important;
+}
+
+/* Form controls */
+input,
+textarea,
+select,
+[data-slot="input"],
+[data-slot="textarea"] {
+  background-color: var(--app-card) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--app-text-secondary) !important;
+  opacity: 0.85;
+}
+
+.border-slate-300,
+.border-slate-200,
+.border-white\/10,
+.border-white\/30,
+.border-gray-200,
+.border-gray-300,
+.border-dashed {
+  border-color: var(--app-border) !important;
+}
+
+/* Hover surfaces */
+.hover\:bg-gray-50:hover,
+.hover\:bg-slate-50:hover,
+.hover\:bg-white\/10:hover {
+  background-color: color-mix(in srgb, var(--app-primary) 10%, var(--app-card)) !important;
+}
+
+.hover\:text-gray-900:hover,
+.hover\:text-white:hover {
+  color: var(--app-text) !important;
+}
+
+/* Active / selected list items */
+.bg-blue-50,
+.border-blue-100 {
+  background-color: color-mix(in srgb, var(--app-primary) 14%, var(--app-card)) !important;
+  border-color: color-mix(in srgb, var(--app-primary) 35%, var(--app-border)) !important;
+}
+
+/* Status colors */
+.bg-green-600,
+.bg-green-500 {
+  background-color: var(--app-success) !important;
+  color: var(--app-primary-foreground) !important;
+}
+
+.text-red-600,
+.text-red-500,
+.text-red-700 {
+  color: var(--app-error) !important;
+}
+
+.bg-red-50,
+.bg-red-600,
+.bg-red-500 {
+  background-color: color-mix(in srgb, var(--app-error) 15%, var(--app-card)) !important;
+  color: var(--app-error) !important;
+}
+
+.border-red-200 {
+  border-color: color-mix(in srgb, var(--app-error) 40%, var(--app-border)) !important;
+}
+
+.bg-green-50 {
+  background-color: color-mix(in srgb, var(--app-success) 12%, var(--app-card)) !important;
+  color: var(--app-success) !important;
+}
+
+.border-green-200 {
+  border-color: color-mix(in srgb, var(--app-success) 35%, var(--app-border)) !important;
+}
+
+/* Info / alert panels that used blue tints */
+.bg-blue-50,
+.border-blue-200 {
+  background-color: color-mix(in srgb, var(--app-primary) 10%, var(--app-card)) !important;
+  border-color: color-mix(in srgb, var(--app-primary) 30%, var(--app-border)) !important;
+}
+
+.text-blue-900,
+.text-blue-800 {
+  color: var(--app-text) !important;
+}
+
+/* Focus rings — soft yellow glow */
+.focus\:ring-yellow-400:focus,
+.focus\:ring-2:focus,
+.focus\:ring-4:focus,
+.focus-within\:ring-4:focus-within,
+.focus-visible\:ring-ring\/50:focus-visible {
+  outline: 2px solid var(--app-primary) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(250, 204, 21, 0.28) !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: 2px solid var(--app-primary) !important;
+  border-color: var(--app-primary) !important;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.2) !important;
+}
+
+/* Tables */
+thead,
+[data-slot="table-header"] {
+  background-color: var(--app-card) !important;
+  color: var(--app-text) !important;
+}
+
+tr:hover {
+  background-color: color-mix(in srgb, var(--app-primary) 6%, var(--app-card)) !important;
+}
+
+/* Dialogs & dropdowns */
+[data-slot="dialog-content"],
+[data-slot="select-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="popover-content"] {
+  background-color: var(--app-card) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
+}
+
+/* Video player chrome stays dark */
+.bg-gray-800,
+.bg-gray-900,
+.bg-gray-700 {
+  background-color: #141414 !important;
+}
+
+/* Loader spinners */
+.animate-spin.text-blue-600 {
+  color: var(--app-primary) !important;
+}
+
+/* Dark text on yellow primary surfaces (buttons, badges, icons) */
+.bg-yellow-400 .text-slate-950,
+.bg-yellow-400.text-slate-950,
+.bg-yellow-400 [class*="text-slate-950"],
+.bg-blue-600 .text-slate-950,
+.bg-primary .text-slate-950,
+.bg-primary.text-primary-foreground,
+button.bg-yellow-400,
+a.bg-yellow-400 {
+  color: var(--app-primary-foreground) !important;
+}
+
+/* Blind mode — larger base text */
+html.blind-accessibility {
+  font-size: 112.5%;
+}
+
+html.blind-accessibility body {
+  letter-spacing: 0.01em;
 }

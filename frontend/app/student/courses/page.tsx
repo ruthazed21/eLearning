@@ -44,8 +44,8 @@ export default function CoursesPage() {
         userId ? enrollmentsAPI.getByStudent(userId) : Promise.resolve([]),
       ]);
 
-      setCourses(allCourses);
-      setMyEnrollments(studentEnrollments.map((e: any) => e.course_id));
+      setCourses(allCourses as any);
+      setMyEnrollments((studentEnrollments as any).map((e: any) => e.course_id));
     } catch (err: any) {
       console.error('Failed to fetch courses:', err);
       setError(err.message || 'Failed to load courses. Please try again.');

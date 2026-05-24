@@ -163,7 +163,7 @@ router.put('/:id', authenticateToken, [
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { fullName, department, bio, phone, profilePictureUrl, currentPassword, newPassword } = req.body;
+    const { fullName, department, bio, phone, profilePictureUrl, currentPassword, newPassword, approval_status } = req.body;
 
     let passwordHash = null;
     if (newPassword) {
@@ -192,10 +192,11 @@ router.put('/:id', authenticateToken, [
            phone = COALESCE($4, phone),
            profile_picture_url = COALESCE($5, profile_picture_url),
            password_hash = COALESCE($6, password_hash),
+           approval_status = COALESCE($7, approval_status),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
-       RETURNING id, email, role, full_name, department, bio, phone, profile_picture_url`,
-      [fullName, department, bio, phone, profilePictureUrl, passwordHash, id]
+       WHERE id = $8
+       RETURNING id, email, role, full_name, department, bio, phone, profile_picture_url, approval_status`,
+      [fullName, department, bio, phone, profilePictureUrl, passwordHash, approval_status, id]
     );
 
     if (result.rows.length === 0) {

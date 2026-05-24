@@ -36,6 +36,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(storedUser);
     }
     setLoading(false);
+
+    const handleUnauthorized = () => {
+      setUser(null);
+      router.push('/');
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, [router]);
+
+  useEffect(() => {
+    // Black & yellow theme is always active; blind mode adds extra contrast class
+    const syncTheme = () => {
+      document.documentElement.classList.add('dark');
+      const mode = localStorage.getItem('accessibilityMode');
+      if (mode === 'blind') {
+        document.documentElement.classList.add('blind-accessibility');
+      } else {
+        document.documentElement.classList.remove('blind-accessibility');
+      }
+    };
+
+    syncTheme();
+
+    window.addEventListener('accessibility-mode-change', syncTheme);
+    window.addEventListener('storage', syncTheme);
+
+    return () => {
+      window.removeEventListener('accessibility-mode-change', syncTheme);
+      window.removeEventListener('storage', syncTheme);
+    };
   }, []);
 
   const login = (token: string, userData: User) => {

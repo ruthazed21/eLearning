@@ -125,7 +125,7 @@ export default function StudentAccessibilityPage() {
 
   const fetchCourses = async () => {
     try {
-      const data = await coursesAPI.getAll();
+      const data = (await coursesAPI.getAll()) as Course[];
       setCourses(data);
     } catch (err) {
       console.error('Failed to fetch courses:', err);
@@ -134,7 +134,7 @@ export default function StudentAccessibilityPage() {
 
   const fetchLessons = async (courseId: number) => {
     try {
-      const data = await lessonsAPI.getByCourse(courseId);
+      const data = (await lessonsAPI.getByCourse(courseId)) as Lesson[];
       setLessons(data);
     } catch (err) {
       console.error('Failed to fetch lessons:', err);

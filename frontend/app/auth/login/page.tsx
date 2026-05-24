@@ -98,7 +98,7 @@ export default function LoginPage() {
       <PublicHeader />
       
       <main id="main-content" className="flex-1 flex items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border-2 border-white/20 overflow-hidden">
+        <div className="w-full max-w-md bg-card rounded-2xl shadow-2xl border-2 border-border overflow-hidden">
           <div className="p-8 lg:p-10">
             <div className="text-center mb-8">
               <div className="flex justify-center mb-6">

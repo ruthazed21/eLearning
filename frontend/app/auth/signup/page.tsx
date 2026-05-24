@@ -143,7 +143,7 @@ export default function SignupPage() {
       </div>
 
       <main id="main-content" className="flex-1 flex items-center justify-center p-6 lg:p-12">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border-2 border-white/20 overflow-hidden">
+        <div className="w-full max-w-md bg-card rounded-2xl shadow-2xl border-2 border-border overflow-hidden">
           <div className="p-8 lg:p-10">
             <div className="text-center mb-8">
               <div className="flex justify-center mb-6">
@@ -212,6 +212,18 @@ export default function SignupPage() {
                   className={textSize + ' text-slate-950 border-2 border-slate-300 focus:border-yellow-400 rounded-lg px-4 py-3'}
                 />
                 {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className={textSize + ' font-semibold text-slate-950'}>Confirm Password *</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className={textSize + ' text-slate-950 border-2 border-slate-300 focus:border-yellow-400 rounded-lg px-4 py-3'}
+                />
+                {errors.confirmPassword && <p className="text-red-600 text-sm mt-1">{errors.confirmPassword}</p>}
               </div>
 
               {formData.role === 'student' ? (

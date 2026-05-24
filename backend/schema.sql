@@ -43,7 +43,7 @@ CREATE TABLE users (
         role != 'student' OR (school_id IS NOT NULL AND disability_type IS NOT NULL AND approval_status IS NOT NULL)
     ),
     CONSTRAINT teacher_fields_check CHECK (
-        role != 'teacher' OR (department IS NOT NULL)
+        role != 'teacher' OR (department IS NOT NULL AND approval_status IS NOT NULL)
     )
 );
 
@@ -71,6 +71,9 @@ CREATE TABLE lessons (
     video_url TEXT,
     subtitle_url TEXT,
     document_url TEXT,
+    audio_url TEXT,
+    extracted_text TEXT,
+    transcript TEXT,
     order_index INTEGER NOT NULL,
     duration_minutes INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

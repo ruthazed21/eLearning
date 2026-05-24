@@ -24,6 +24,14 @@ async function setupDatabase() {
     await pool.query(schema);
     console.log('✓ Database schema created successfully');
 
+    // Read and execute seed data if present
+    const seedPath = path.join(__dirname, 'seed_data.sql');
+    if (fs.existsSync(seedPath)) {
+      const seed = fs.readFileSync(seedPath, 'utf8');
+      await pool.query(seed);
+      console.log('✓ Database seeded successfully');
+    }
+
     // Create default admin user with hashed password
     const adminPassword = await bcrypt.hash('admin123', 10);
     await pool.query(

@@ -31,12 +31,12 @@ export default function ProgressPage() {
       setLoading(true);
       setError('');
 
-      const [stats, courseProgress, quizAttempts, enrollmentData] = await Promise.all([
+      const [stats, courseProgress, quizAttempts, enrollmentData] = (await Promise.all([
         systemAPI.getStudentStats(),
         progressAPI.getByStudent(user.id),
         quizzesAPI.getRecentAttempts(),
         enrollmentsAPI.getByStudent(user.id),
-      ]);
+      ])) as any[];
 
       setStatsData(stats);
       setCourseProgressData(courseProgress);
