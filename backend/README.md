@@ -37,7 +37,15 @@ PORT=5000
 JWT_SECRET=your_jwt_secret_key_change_in_production
 JWT_EXPIRES_IN=7d
 ```
-
+Add SMTP settings if you want password reset emails to work:
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_smtp_username
+SMTP_PASS=your_smtp_password
+EMAIL_FROM=no-reply@eduaccess.com
+```
 3. Create PostgreSQL database and user:
 ```bash
 # Login to PostgreSQL

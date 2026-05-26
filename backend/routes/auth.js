@@ -115,8 +115,9 @@ const mailTransporter = process.env.SMTP_HOST
 
 const sendPasswordResetEmail = async (email, code) => {
   if (!mailTransporter) {
-    console.warn('SMTP is not configured; password reset code:', code, 'email:', email);
-    return;
+    const err = new Error('SMTP is not configured; set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in .env');
+    err.code = 'E_SMTP_CONFIG';
+    throw err;
   }
 
   const mailOptions = {
@@ -127,7 +128,12 @@ const sendPasswordResetEmail = async (email, code) => {
     html: `<p>Your password reset code is: <strong>${code}</strong></p><p>This code expires in 15 minutes.</p>`,
   };
 
-  await mailTransporter.sendMail(mailOptions);
+  try {
+    await mailTransporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error('Password reset email sending failed:', { email, code, error: error.message });
+    throw error;
+  }
 };
 
 // Logout - clear cookie
@@ -246,12 +252,19 @@ router.post('/request-password-reset', [
         'UPDATE users SET reset_code = $1, reset_code_expires_at = $2 WHERE email = $3',
         [code, expiresAt, email]
       );
-      await sendPasswordResetEmail(email, code);
+      try {
+        await sendPasswordResetEmail(email, code);
+      } catch (error) {
+        console.error('Password reset email could not be sent:', error);
+      }
     }
 
     return res.json({ message: 'If the email exists, a reset code has been sent to that address.' });
   } catch (error) {
     console.error('Request password reset error:', error);
+    if (error && error.code === 'E_SMTP_CONFIG') {
+      return res.status(500).json({ error: error.message });
+    }
     res.status(500).json({ error: 'Failed to process password reset request' });
   }
 });

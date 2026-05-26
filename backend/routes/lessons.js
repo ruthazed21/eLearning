@@ -41,14 +41,22 @@ const deleteLocalFile = (filePath) => {
 // Configure multer for video and subtitle uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
+    let uploadDir;
     if (file.fieldname === 'video') {
-      cb(null, path.join(__dirname, '../uploads/videos'));
+      uploadDir = path.join(__dirname, '../uploads/videos');
     } else if (file.fieldname === 'subtitle') {
-      cb(null, path.join(__dirname, '../uploads/subtitles'));
+      uploadDir = path.join(__dirname, '../uploads/subtitles');
     } else if (file.fieldname === 'document') {
-      cb(null, path.join(__dirname, '../uploads/documents'));
+      uploadDir = path.join(__dirname, '../uploads/documents');
     } else {
-      cb(new Error('Invalid field name'));
+      return cb(new Error('Invalid field name'));
+    }
+
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (mkdirErr) {
+      cb(mkdirErr);
     }
   },
   filename: (req, file, cb) => {

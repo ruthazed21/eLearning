@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Eye, Ear, Accessibility, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
 
 type AccessibilityMode = 'default' | 'blind' | 'deaf';
 
@@ -19,23 +19,6 @@ export default function PublicHeader() {
       setAccessibilityMode(saved);
     }
   }, []);
-
-  const handleModeChange = (mode: AccessibilityMode) => {
-    setAccessibilityMode(mode);
-    localStorage.setItem('accessibilityMode', mode);
-    window.dispatchEvent(new CustomEvent('accessibility-mode-change', { detail: mode }));
-    
-    const announcement = mode === 'blind' 
-      ? 'Blind mode activated. High contrast theme enabled with enhanced screen reader support and 20 pixel base font size.'
-      : mode === 'deaf'
-      ? 'Deaf mode activated. Visual cues enabled with closed captions support for all videos.'
-      : 'Default mode activated.';
-    
-    const liveRegion = document.getElementById('accessibility-announcements');
-    if (liveRegion) {
-      liveRegion.textContent = announcement;
-    }
-  };
 
   const bgColor = accessibilityMode === 'blind' ? 'bg-black' : 'bg-slate-950';
   const textSize = accessibilityMode === 'blind' ? 'text-xl' : 'text-base';
@@ -75,54 +58,6 @@ export default function PublicHeader() {
               />
             </Link>
 
-            <div className="flex items-center gap-3" role="region" aria-label="Accessibility mode selector">
-              <div className="flex gap-2" role="group" aria-label="Accessibility mode options">
-                <Button
-                  onClick={() => handleModeChange('default')}
-                  className={`${
-                    accessibilityMode === 'default' 
-                      ? 'bg-yellow-400 text-slate-950 hover:bg-yellow-300 border-yellow-400' 
-                      : 'bg-transparent border-2 border-white/30 text-white hover:bg-white/10 hover:text-white hover:border-white'
-                  } focus:ring-4 focus:ring-yellow-400 focus:ring-offset-2 focus:ring-offset-slate-950 font-semibold transition-all rounded-lg ${
-                    accessibilityMode === 'blind' ? 'text-xl px-6 py-3' : 'px-4 py-2'
-                  }`}
-                  aria-pressed={accessibilityMode === 'default'}
-                  aria-label="Default mode - standard interface"
-                >
-                  Default
-                </Button>
-                <Button
-                  onClick={() => handleModeChange('blind')}
-                  className={`${
-                    accessibilityMode === 'blind' 
-                      ? 'bg-yellow-400 text-slate-950 hover:bg-yellow-300 border-yellow-400' 
-                      : 'bg-transparent border-2 border-white/30 text-white hover:bg-white/10 hover:text-white hover:border-white'
-                  } focus:ring-4 focus:ring-yellow-400 focus:ring-offset-2 focus:ring-offset-slate-950 font-semibold transition-all rounded-lg ${
-                    accessibilityMode === 'blind' ? 'text-xl px-6 py-3' : 'px-4 py-2'
-                  }`}
-                  aria-pressed={accessibilityMode === 'blind'}
-                  aria-label="Blind mode - high contrast with enhanced screen reader support and larger text"
-                >
-                  <Eye className="mr-2 h-5 w-5" aria-hidden="true" />
-                  Blind Mode
-                </Button>
-                <Button
-                  onClick={() => handleModeChange('deaf')}
-                  className={`${
-                    accessibilityMode === 'deaf' 
-                      ? 'bg-yellow-400 text-slate-950 hover:bg-yellow-300 border-yellow-400' 
-                      : 'bg-transparent border-2 border-white/30 text-white hover:bg-white/10 hover:text-white hover:border-white'
-                  } focus:ring-4 focus:ring-yellow-400 focus:ring-offset-2 focus:ring-offset-slate-950 font-semibold transition-all rounded-lg ${
-                    accessibilityMode === 'blind' ? 'text-xl px-6 py-3' : 'px-4 py-2'
-                  }`}
-                  aria-pressed={accessibilityMode === 'deaf'}
-                  aria-label="Deaf mode - visual cues with closed captions support for all videos"
-                >
-                  <Ear className="mr-2 h-5 w-5" aria-hidden="true" />
-                  Deaf Mode
-                </Button>
-              </div>
-            </div>
 
             <div className="flex items-center gap-4">
               <Link href="/auth/login">
@@ -140,7 +75,7 @@ export default function PublicHeader() {
                   className={`bg-yellow-400 text-slate-950 hover:bg-yellow-300 focus:ring-4 focus:ring-yellow-400 focus:ring-offset-2 font-semibold transition-all ${textSize} ${visualCue}`}
                   aria-label="Sign up for free account with your BDU Student ID"
                 >
-                  Sign Up with Student ID
+                  Sign Up 
                 </Button>
               </Link>
             </div>
