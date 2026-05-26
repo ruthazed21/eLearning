@@ -1,11 +1,20 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const pool = require('../db/connection');
+const logger = require('../logger');
+const { sendPasswordResetEmail } = require('../utils/mail');
+
+const RESET_CODE_EXPIRY_MINUTES = Number(process.env.RESET_CODE_EXPIRY_MINUTES) || 10;
+const RESET_ROLES = ['student', 'teacher'];
+
+function generateResetCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
 
 // Login-specific rate limiter: disabled in development, otherwise 5 attempts per 15 minutes
 const loginLimiter = process.env.NODE_ENV === 'development'
@@ -99,41 +108,6 @@ const authCookieOptions = {
   secure: process.env.NODE_ENV === 'production',
   sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-};
-
-const mailTransporter = process.env.SMTP_HOST
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    })
-  : null;
-
-const sendPasswordResetEmail = async (email, code) => {
-  if (!mailTransporter) {
-    const err = new Error('SMTP is not configured; set SMTP_HOST, SMTP_PORT, SMTP_USER, and SMTP_PASS in .env');
-    err.code = 'E_SMTP_CONFIG';
-    throw err;
-  }
-
-  const mailOptions = {
-    from: process.env.EMAIL_FROM || 'no-reply@eduaccess.com',
-    to: email,
-    subject: 'Your password reset code',
-    text: `Your password reset code is: ${code}\n\nThis code expires in 15 minutes. If you did not request a password reset, ignore this message.`,
-    html: `<p>Your password reset code is: <strong>${code}</strong></p><p>This code expires in 15 minutes.</p>`,
-  };
-
-  try {
-    await mailTransporter.sendMail(mailOptions);
-  } catch (error) {
-    console.error('Password reset email sending failed:', { email, code, error: error.message });
-    throw error;
-  }
 };
 
 // Logout - clear cookie
@@ -231,48 +205,90 @@ router.post('/signup', [
   }
 });
 
-// Password reset request
+// Password reset request (students & teachers)
 router.post('/request-password-reset', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').isEmail().withMessage('Please enter a valid email').normalizeEmail(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    const first = errors.array()[0];
+    return res.status(400).json({ success: false, message: first?.msg || 'Invalid email' });
   }
 
   const { email } = req.body;
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const genericMessage =
+    'If an account exists for this email, a verification code has been sent. Check your inbox.';
 
   try {
-    const userResult = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const userResult = await pool.query(
+      'SELECT id, role FROM users WHERE email = $1',
+      [email]
+    );
 
-    if (userResult.rows.length > 0) {
-      await pool.query(
-        'UPDATE users SET reset_code = $1, reset_code_expires_at = $2 WHERE email = $3',
-        [code, expiresAt, email]
-      );
-      try {
-        await sendPasswordResetEmail(email, code);
-      } catch (error) {
-        console.error('Password reset email could not be sent:', error);
-      }
+    if (userResult.rows.length === 0) {
+      return res.json({ success: true, message: genericMessage });
     }
 
-    return res.json({ message: 'If the email exists, a reset code has been sent to that address.' });
+    const user = userResult.rows[0];
+    if (!RESET_ROLES.includes(user.role)) {
+      return res.json({ success: true, message: genericMessage });
+    }
+
+    const plainCode = generateResetCode();
+    const codeHash = await bcrypt.hash(plainCode, 10);
+    const expiresAt = new Date(Date.now() + RESET_CODE_EXPIRY_MINUTES * 60 * 1000);
+
+    await pool.query(
+      'UPDATE users SET reset_code = $1, reset_code_expires_at = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
+      [codeHash, expiresAt.toISOString(), user.id]
+    );
+
+    logger.info('[password-reset] Code saved', { userId: user.id, email });
+
+    const mailResult = await sendPasswordResetEmail(email, plainCode, RESET_CODE_EXPIRY_MINUTES);
+
+    if (mailResult.sent) {
+      logger.info('[password-reset] Email sent', { provider: mailResult.provider, email });
+      return res.json({
+        success: true,
+        message: genericMessage,
+        expiresInMinutes: RESET_CODE_EXPIRY_MINUTES,
+      });
+    }
+
+    // Development: SMTP blocked but code is in DB — show in terminal, allow flow to continue
+    if (mailResult.devLogged) {
+      return res.json({
+        success: true,
+        message: genericMessage,
+        expiresInMinutes: RESET_CODE_EXPIRY_MINUTES,
+        devNote:
+          'Email could not be delivered (network/SMTP blocked). Open the backend terminal for your 6-digit code, or add RESEND_API_KEY to .env.',
+      });
+    }
+
+    return res.status(503).json({
+      success: false,
+      message: mailResult.error || 'Could not send verification email.',
+    });
   } catch (error) {
-    console.error('Request password reset error:', error);
-    if (error && error.code === 'E_SMTP_CONFIG') {
-      return res.status(500).json({ error: error.message });
-    }
-    res.status(500).json({ error: 'Failed to process password reset request' });
+    logger.error('[password-reset] Request failed', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to process password reset request',
+      ...(process.env.NODE_ENV === 'development' && { details: error.message }),
+    });
   }
 });
 
 // Confirm reset code and update password
 router.post('/confirm-password-reset', [
   body('email').isEmail().normalizeEmail(),
-  body('code').trim().notEmpty().withMessage('Reset code is required'),
+  body('code').trim().matches(/^\d{6}$/).withMessage('Verification code must be 6 digits'),
   body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -280,24 +296,43 @@ router.post('/confirm-password-reset', [
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { email, code, newPassword } = req.body;
+  const { email, newPassword } = req.body;
+  const code = String(req.body.code || '').trim().replace(/\s/g, '');
 
   try {
     const result = await pool.query(
-      'SELECT id, reset_code, reset_code_expires_at FROM users WHERE email = $1',
+      'SELECT id, role, reset_code, reset_code_expires_at FROM users WHERE email = $1',
       [email]
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: 'Invalid reset code or email' });
+      return res.status(400).json({ success: false, message: 'Invalid verification code or email' });
     }
 
     const user = result.rows[0];
-    const expiresAt = user.reset_code_expires_at ? new Date(user.reset_code_expires_at) : null;
-    const isCodeValid = user.reset_code === code && expiresAt && expiresAt > new Date();
 
-    if (!isCodeValid) {
-      return res.status(400).json({ error: 'Invalid or expired reset code' });
+    if (!user.reset_code || !user.reset_code_expires_at) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active reset request. Request a new code from Forgot Password.',
+      });
+    }
+
+    const expiresAt = new Date(user.reset_code_expires_at);
+    if (expiresAt <= new Date()) {
+      await pool.query(
+        'UPDATE users SET reset_code = NULL, reset_code_expires_at = NULL WHERE id = $1',
+        [user.id]
+      );
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired. Request a new code.',
+      });
+    }
+
+    const codeMatches = await bcrypt.compare(code, user.reset_code);
+    if (!codeMatches) {
+      return res.status(400).json({ success: false, message: 'Incorrect verification code.' });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);

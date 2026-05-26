@@ -162,11 +162,12 @@ function generateTtsAudio(text, outputPath) {
 }
 
 /**
- * Generates captions (VTT format) and a transcript based on lesson title and description.
+ * Fallback captions when FFmpeg/Whisper STT is unavailable (title/description only).
+ * Real video speech transcription lives in utils/videoTranscription.js.
  * @param {string} title - Lesson title.
  * @param {string} description - Lesson description.
  * @param {string} subtitlePath - Path to output subtitle VTT file.
- * @returns {object} { subtitleUrlPath, transcript }
+ * @returns {object} { transcript }
  */
 function generateSubtitlesAndTranscript(title, description, subtitlePath) {
   const cleanTitle = title || 'Untitled Lesson';

@@ -141,7 +141,24 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+const { ensureResetSchema } = require('./utils/ensureResetSchema');
+const { logSmtpEnvOnBoot, getSmtpStatusForLogs } = require('./utils/mail');
 
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`, { env: process.env.NODE_ENV || 'development' });
-});
+async function startServer() {
+  try {
+    await ensureResetSchema(pool);
+  } catch (err) {
+    logger.error('Password reset schema check failed', { error: err.message });
+  }
+
+  logSmtpEnvOnBoot();
+
+  app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`, {
+      env: process.env.NODE_ENV || 'development',
+      email: getSmtpStatusForLogs(),
+    });
+  });
+}
+
+startServer();

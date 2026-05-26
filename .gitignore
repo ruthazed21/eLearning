@@ -37,6 +37,8 @@ frontend/dist/
 # Uploads (user-generated content - usually not committed)
 backend/uploads/videos/*
 backend/uploads/subtitles/*
+backend/uploads/temp-audio/*
+!backend/uploads/temp-audio/.gitkeep
 !backend/uploads/videos/.gitkeep
 !backend/uploads/subtitles/.gitkeep
 !backend/uploads/subtitles/sample-subtitle.vtt

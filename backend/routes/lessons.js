@@ -11,8 +11,8 @@ const {
   extractTextFromPdf,
   extractTextFromPptx,
   generateTtsAudio,
-  generateSubtitlesAndTranscript
 } = require('../utils/accessibility');
+const { transcribeVideoToSubtitles } = require('../utils/videoTranscription');
 
 // Helper to parse VTT content to plain text transcript
 function parseVttToTranscript(vttText) {
@@ -227,10 +227,10 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
       }
     }
 
-    // Process Video for Deaf accessibility (Automatic Captions / STT simulation)
+    // Process Video for Deaf accessibility (FFmpeg + Whisper STT, or manual VTT)
     if (finalVideoUrl) {
-      if (finalSubtitleUrl) {
-        // Parse uploaded subtitles for transcript
+      const manualSubtitleUpload = Boolean(req.files?.subtitle?.[0]);
+      if (manualSubtitleUpload && finalSubtitleUrl) {
         try {
           const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
           if (fs.existsSync(fullSubPath)) {
@@ -240,17 +240,20 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
         } catch (subErr) {
           console.error('Error reading manual subtitle file:', subErr);
         }
-      } else {
-        // Generate automatic subtitle VTT file and transcript
+      } else if (!finalSubtitleUrl) {
         try {
           const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
           const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
-          
-          const stt = generateSubtitlesAndTranscript(title, description, subtitlePath);
+          const fullVideoPath = path.join(__dirname, '..', finalVideoUrl);
+
+          const stt = await transcribeVideoToSubtitles(fullVideoPath, subtitlePath, {
+            title,
+            description,
+          });
           finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
           transcript = stt.transcript;
         } catch (sttErr) {
-          console.error('Error generating automated subtitles:', sttErr);
+          console.error('Error generating automated subtitles from video:', sttErr);
         }
       }
     }
@@ -396,38 +399,34 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
       }
     }
 
-    // Re-generate subtitles and transcript if video/subtitles changed, or if title/description changed
-    const titleOrDescChanged = (title !== undefined && title !== lessonData.title) || 
-                               (description !== undefined && description !== lessonData.description);
-    
-    if (videoChanged || subtitleChanged || (titleOrDescChanged && finalVideoUrl)) {
-      if (subtitleChanged || (finalSubtitleUrl && !subtitleChanged && !videoChanged)) {
-        // Parse uploaded subtitles for transcript
-        try {
-          const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
-          if (fs.existsSync(fullSubPath)) {
-            const vttText = fs.readFileSync(fullSubPath, 'utf8');
-            transcript = parseVttToTranscript(vttText);
-          }
-        } catch (subErr) {
-          console.error('Error reading manual subtitle file:', subErr);
+    // Re-generate captions when a new video is uploaded, or parse manual VTT upload
+    if (subtitleChanged && finalSubtitleUrl) {
+      try {
+        const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
+        if (fs.existsSync(fullSubPath)) {
+          const vttText = fs.readFileSync(fullSubPath, 'utf8');
+          transcript = parseVttToTranscript(vttText);
         }
-      } else if (finalVideoUrl && (!finalSubtitleUrl || (titleOrDescChanged && finalSubtitleUrl.includes('/uploads/subtitles/subtitle-')))) {
-        // Regenerate automated subtitles & transcript
-        try {
-          deleteLocalFile(finalSubtitleUrl); // delete old auto subtitle file
-          const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
-          const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+      } catch (subErr) {
+        console.error('Error reading manual subtitle file:', subErr);
+      }
+    } else if (videoChanged && finalVideoUrl) {
+      try {
+        deleteLocalFile(finalSubtitleUrl);
+        const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
+        const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+        const fullVideoPath = path.join(__dirname, '..', finalVideoUrl);
+        const updatedTitle = title !== undefined ? title : lessonData.title;
+        const updatedDesc = description !== undefined ? description : lessonData.description;
 
-          const updatedTitle = title !== undefined ? title : lessonData.title;
-          const updatedDesc = description !== undefined ? description : lessonData.description;
-
-          const stt = generateSubtitlesAndTranscript(updatedTitle, updatedDesc, subtitlePath);
-          finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
-          transcript = stt.transcript;
-        } catch (sttErr) {
-          console.error('Error re-generating automated subtitles:', sttErr);
-        }
+        const stt = await transcribeVideoToSubtitles(fullVideoPath, subtitlePath, {
+          title: updatedTitle,
+          description: updatedDesc,
+        });
+        finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
+        transcript = stt.transcript;
+      } catch (sttErr) {
+        console.error('Error re-generating subtitles from video:', sttErr);
       }
     }
 
