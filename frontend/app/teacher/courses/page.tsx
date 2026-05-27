@@ -188,7 +188,7 @@ export default function TeacherCoursesPage() {
   ];
 
   return (
-    <RouteGuard allowedRoles={['teacher']}>
+    <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
     <DashboardLayout role="teacher" userName={user?.fullName || "Teacher"} userRole="Teacher">
       <KeyboardShortcutsHelp shortcuts={keyboardShortcuts} />
       <div className="space-y-6">

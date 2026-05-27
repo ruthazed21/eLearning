@@ -37,6 +37,9 @@ CREATE TABLE users (
     phone VARCHAR(20),
     reset_code VARCHAR(10),
     reset_code_expires_at TIMESTAMP,
+
+    -- Set true only after signup magic-link email verification succeeds
+    email_verified BOOLEAN NOT NULL DEFAULT false,
     
     -- Constraints
     CONSTRAINT student_fields_check CHECK (
@@ -45,6 +48,37 @@ CREATE TABLE users (
     CONSTRAINT teacher_fields_check CHECK (
         role != 'teacher' OR (department IS NOT NULL AND approval_status IS NOT NULL)
     )
+);
+
+-- Email verification (2-step signup, signup-only)
+-- This table stores a pending signup until the user proves they own the email address.
+CREATE TABLE IF NOT EXISTS email_verification_signups (
+    id VARCHAR(64) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('student', 'teacher', 'admin')),
+
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255) NOT NULL,
+
+    school_id VARCHAR(50),
+    disability_type VARCHAR(100),
+
+    department VARCHAR(100),
+    bio TEXT,
+
+    client_key VARCHAR(64) NOT NULL,
+
+    verification_nonce VARCHAR(64) NOT NULL,
+    verification_expires_at TIMESTAMP NOT NULL,
+
+    status VARCHAR(20) NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'verified', 'expired', 'cancelled')),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    verified_at TIMESTAMP,
+
+    user_id INTEGER
 );
 
 -- Courses table
@@ -177,6 +211,8 @@ CREATE TABLE audit_logs (
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_approval_status ON users(approval_status);
+CREATE INDEX IF NOT EXISTS idx_email_verification_signups_email_status
+  ON email_verification_signups(email, status);
 CREATE INDEX idx_courses_teacher ON courses(teacher_id);
 CREATE INDEX idx_courses_status ON courses(status);
 CREATE INDEX idx_lessons_course ON lessons(course_id);

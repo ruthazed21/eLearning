@@ -31,8 +31,8 @@ export const AddUserDialog = dynamic(
   { ssr: false, loading: () => loadingFallback }
 );
 
-export const EditUserDialog = dynamic(
-  () => import('./edit-user-dialog').then(m => ({ default: m.EditUserDialog })),
+export const TeacherStatusDialog = dynamic(
+  () => import('./teacher-status-dialog').then(m => ({ default: m.TeacherStatusDialog })),
   { ssr: false, loading: () => loadingFallback }
 );
 

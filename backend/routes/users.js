@@ -6,6 +6,20 @@ const pool = require('../db/connection');
 const authenticateToken = require('../middleware/auth');
 const checkRole = require('../middleware/roleCheck');
 
+const PROFILE_FIELDS = [
+  'fullName',
+  'department',
+  'bio',
+  'phone',
+  'profilePictureUrl',
+  'newPassword',
+  'email',
+];
+
+function hasForbiddenProfileFields(body) {
+  return PROFILE_FIELDS.some((key) => body[key] !== undefined && body[key] !== null && body[key] !== '');
+}
+
 // Get all users (Admin only)
 router.get('/', authenticateToken, checkRole('admin'), async (req, res) => {
   try {
@@ -25,7 +39,6 @@ router.get('/', authenticateToken, checkRole('admin'), async (req, res) => {
 
     const baseQuery = `SELECT id, email, role, full_name, school_id, disability_type, approval_status, department, created_at FROM users ${where} ORDER BY created_at DESC`;
 
-    // Pagination (only when page param is provided)
     if (page) {
       const pageNum = Math.max(1, parseInt(page) || 1);
       const limit = Math.min(parseInt(limitParam) || 20, 100);
@@ -62,13 +75,12 @@ router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Users can view their own profile, admins can view any profile
-    if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+    if (req.user.role !== 'admin' && req.user.id !== parseInt(id, 10)) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
     const result = await pool.query(
-      'SELECT id, email, role, full_name, school_id, disability_type, approval_status, department, bio, profile_picture_url, phone, created_at FROM users WHERE id = $1',
+      'SELECT id, email, role, full_name, school_id, disability_type, approval_status, department, bio, profile_picture_url, phone, email_verified, created_at FROM users WHERE id = $1',
       [id]
     );
 
@@ -83,19 +95,20 @@ router.get('/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Create user (Admin only)
+// Create user (Admin only) — teachers only; students must register via signup
 router.post('/', authenticateToken, checkRole('admin'), [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
-  body('role').isIn(['student', 'teacher', 'admin']),
-  body('fullName').trim().notEmpty()
+  body('role').equals('teacher').withMessage('Admins can only create teacher accounts'),
+  body('fullName').trim().notEmpty(),
+  body('department').trim().notEmpty(),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { email, password, role, fullName, schoolId, disabilityType, department, bio } = req.body;
+  const { email, password, fullName, department, bio } = req.body;
 
   try {
     const userCheck = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
@@ -105,38 +118,17 @@ router.post('/', authenticateToken, checkRole('admin'), [
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    let query, params;
+    const result = await pool.query(
+      `INSERT INTO users (email, password_hash, role, full_name, department, bio, approval_status, email_verified)
+       VALUES ($1, $2, 'teacher', $3, $4, $5, 'pending', false)
+       RETURNING id, email, role, full_name, department, approval_status, created_at`,
+      [email, passwordHash, fullName, department, bio || null]
+    );
 
-    if (role === 'student') {
-      if (!schoolId || !disabilityType) {
-        return res.status(400).json({ error: 'School ID and disability type required for students' });
-      }
-      query = `INSERT INTO users (email, password_hash, role, full_name, school_id, disability_type, approval_status)
-               VALUES ($1, $2, $3, $4, $5, $6, 'approved')
-               RETURNING id, email, role, full_name, school_id, disability_type, approval_status`;
-      params = [email, passwordHash, role, fullName, schoolId, disabilityType];
-    } else if (role === 'teacher') {
-      if (!department) {
-        return res.status(400).json({ error: 'Department required for teachers' });
-      }
-      query = `INSERT INTO users (email, password_hash, role, full_name, department, bio)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               RETURNING id, email, role, full_name, department`;
-      params = [email, passwordHash, role, fullName, department, bio || null];
-    } else {
-      query = `INSERT INTO users (email, password_hash, role, full_name)
-               VALUES ($1, $2, $3, $4)
-               RETURNING id, email, role, full_name`;
-      params = [email, passwordHash, role, fullName];
-    }
-
-    const result = await pool.query(query, params);
-
-    // Log user creation
     await pool.query(
       `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [req.user.id, 'CREATE_USER', 'user', result.rows[0].id, JSON.stringify({ email, role, fullName }), req.ip]
+      [req.user.id, 'CREATE_USER', 'user', result.rows[0].id, JSON.stringify({ email, role: 'teacher', fullName }), req.ip]
     );
 
     res.status(201).json(result.rows[0]);
@@ -146,24 +138,98 @@ router.post('/', authenticateToken, checkRole('admin'), [
   }
 });
 
-// Update user
+// Update user — self-service profile edits OR admin teacher status-only
 router.put('/:id', authenticateToken, [
   body('email').optional().isEmail().normalizeEmail(),
   body('fullName').optional().trim().notEmpty(),
-  body('newPassword').optional().isLength({ min: 6 }).withMessage('New password must be at least 6 characters')
+  body('newPassword').optional().isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
+  body('approval_status').optional().isIn(['approved', 'pending', 'rejected']),
 ], async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
+
   try {
     const { id } = req.params;
+    const targetId = parseInt(id, 10);
+    const isSelf = req.user.id === targetId;
+    const isAdmin = req.user.role === 'admin';
 
-    if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+    const targetResult = await pool.query(
+      'SELECT id, role, email FROM users WHERE id = $1',
+      [targetId]
+    );
+    if (targetResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const targetUser = targetResult.rows[0];
+
+    // Admin updating another user (not self)
+    if (isAdmin && !isSelf) {
+      if (targetUser.role === 'student') {
+        return res.status(403).json({
+          error: 'Admins cannot edit student profiles. You may view or delete student accounts only.',
+        });
+      }
+
+      if (targetUser.role === 'admin') {
+        return res.status(403).json({
+          error: 'Admins cannot edit other administrator profiles.',
+        });
+      }
+
+      if (targetUser.role === 'teacher') {
+        if (hasForbiddenProfileFields(req.body)) {
+          return res.status(403).json({
+            error: 'Admins can only change teacher account status (Active/Inactive), not profile details.',
+          });
+        }
+
+        const { approval_status } = req.body;
+        if (!approval_status) {
+          return res.status(400).json({ error: 'approval_status is required' });
+        }
+
+        const updateResult = await pool.query(
+          `UPDATE users
+           SET approval_status = $1, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND role = 'teacher'
+           RETURNING id, email, role, full_name, approval_status, department, created_at`,
+          [approval_status, targetId]
+        );
+
+        await pool.query(
+          `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            req.user.id,
+            'UPDATE_USER_STATUS',
+            'user',
+            targetId,
+            JSON.stringify({ approval_status, targetEmail: targetUser.email }),
+            req.ip,
+          ]
+        );
+
+        return res.json(updateResult.rows[0]);
+      }
+    }
+
+    // Self profile update only (student, teacher, or admin editing own account)
+    if (!isSelf) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { fullName, department, bio, phone, profilePictureUrl, currentPassword, newPassword, approval_status } = req.body;
+    if (req.body.approval_status !== undefined) {
+      return res.status(403).json({ error: 'You cannot change your own approval status' });
+    }
+
+    const { fullName, department, bio, phone, profilePictureUrl, currentPassword, newPassword } = req.body;
+
+    if (targetUser.role === 'student' && (department !== undefined || bio !== undefined || phone !== undefined || profilePictureUrl !== undefined)) {
+      return res.status(400).json({ error: 'Invalid fields for student profile update' });
+    }
 
     let passwordHash = null;
     if (newPassword) {
@@ -171,11 +237,7 @@ router.put('/:id', authenticateToken, [
         return res.status(400).json({ error: 'Current password is required to set a new password' });
       }
 
-      const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [id]);
-      if (userResult.rows.length === 0) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-
+      const userResult = await pool.query('SELECT password_hash FROM users WHERE id = $1', [targetId]);
       const validPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
       if (!validPassword) {
         return res.status(401).json({ error: 'Current password is incorrect' });
@@ -192,22 +254,16 @@ router.put('/:id', authenticateToken, [
            phone = COALESCE($4, phone),
            profile_picture_url = COALESCE($5, profile_picture_url),
            password_hash = COALESCE($6, password_hash),
-           approval_status = COALESCE($7, approval_status),
            updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8
+       WHERE id = $7
        RETURNING id, email, role, full_name, department, bio, phone, profile_picture_url, approval_status`,
-      [fullName, department, bio, phone, profilePictureUrl, passwordHash, approval_status, id]
+      [fullName, department, bio, phone, profilePictureUrl, passwordHash, targetId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Log user update
     await pool.query(
       `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address)
        VALUES ($1, $2, $3, $4, $5, $6)`,
-      [req.user.id, 'UPDATE_USER', 'user', id, JSON.stringify({ fullName, department, bio, phone, passwordChanged: !!newPassword }), req.ip]
+      [req.user.id, 'UPDATE_USER', 'user', targetId, JSON.stringify({ fullName, department, bio, phone, passwordChanged: !!newPassword }), req.ip]
     );
 
     res.json(result.rows[0]);
@@ -221,22 +277,25 @@ router.put('/:id', authenticateToken, [
 router.delete('/:id', authenticateToken, checkRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
+    const targetId = parseInt(id, 10);
 
-    // Get user info before deletion for audit log
-    const userInfo = await pool.query('SELECT email, full_name, role FROM users WHERE id = $1', [id]);
-    
-    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [id]);
+    if (req.user.id === targetId) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    const userInfo = await pool.query('SELECT email, full_name, role FROM users WHERE id = $1', [targetId]);
+
+    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING id', [targetId]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Log user deletion
     if (userInfo.rows.length > 0) {
       await pool.query(
         `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [req.user.id, 'DELETE_USER', 'user', id, JSON.stringify({ email: userInfo.rows[0].email, fullName: userInfo.rows[0].full_name, role: userInfo.rows[0].role }), req.ip]
+        [req.user.id, 'DELETE_USER', 'user', targetId, JSON.stringify({ email: userInfo.rows[0].email, fullName: userInfo.rows[0].full_name, role: userInfo.rows[0].role }), req.ip]
       );
     }
 

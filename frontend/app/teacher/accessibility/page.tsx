@@ -193,7 +193,7 @@ export default function TeacherAccessibilityPage() {
       : 0;
 
   return (
-    <RouteGuard allowedRoles={['teacher']}>
+    <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
       <DashboardLayout role="teacher" userName={user?.full_name || 'Teacher'} userRole="Teacher">
         <div className="space-y-6">
           <div>

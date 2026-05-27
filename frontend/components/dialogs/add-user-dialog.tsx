@@ -14,13 +14,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { UserPlus, Loader2 } from 'lucide-react';
 
 interface AddUserDialogProps {
@@ -35,7 +28,7 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
     name: '',
     email: '',
     password: '',
-    role: 'student',
+    department: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,31 +37,19 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
     setError('');
 
     try {
-      // Backend expects role in lowercase and fullName
-      const apiData = {
+      const created = await usersAPI.create({
         fullName: formData.name,
         email: formData.email,
         password: formData.password,
-        role: formData.role.toLowerCase(),
-        // Add default student fields if student
-        ...(formData.role.toLowerCase() === 'student' ? {
-          schoolId: 'BDU-TEMP-' + Date.now(),
-          disabilityType: 'Other'
-        } : {}),
-        // Add default teacher fields if teacher
-        ...(formData.role.toLowerCase() === 'teacher' ? {
-          department: 'General'
-        } : {})
-      };
-
-      const created = await usersAPI.create(apiData);
+        role: 'teacher',
+        department: formData.department.trim() || 'General',
+      });
       setOpen(false);
-      // Reset form
-      setFormData({ name: '', email: '', password: '', role: 'student' });
+      setFormData({ name: '', email: '', password: '', department: '' });
       if (onSuccess) onSuccess(created);
-    } catch (err: any) {
-      console.error('Failed to create user:', err);
-      setError(err.message || 'Failed to create user');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create teacher account';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -79,20 +60,21 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
       <DialogTrigger asChild>
         <Button className="gap-2" size="lg">
           <UserPlus className="h-5 w-5" aria-hidden="true" />
-          Add New User
+          Add Teacher
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
+            <DialogTitle>Add Teacher</DialogTitle>
             <DialogDescription>
-              Create a new user account. All fields are required.
+              Create a new teacher account. Student accounts must register through the public signup
+              page.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             {error && (
-              <div className="text-sm font-medium text-red-600 bg-red-50 p-2 rounded">
+              <div className="text-sm font-medium text-red-600 bg-red-50 p-2 rounded" role="alert">
                 {error}
               </div>
             )}
@@ -102,7 +84,7 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="John Doe"
+                placeholder="Jane Doe"
                 required
                 disabled={loading}
               />
@@ -114,7 +96,18 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="john@example.com"
+                placeholder="jane@example.com"
+                required
+                disabled={loading}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="department">Department</Label>
+              <Input
+                id="department"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                placeholder="Computer Science"
                 required
                 disabled={loading}
               />
@@ -132,36 +125,14 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
                 disabled={loading}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="role">Role</Label>
-              <Select
-                value={formData.role}
-                onValueChange={(value) => setFormData({ ...formData, role: value })}
-                disabled={loading}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue placeholder="Select role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={loading}
-            >
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={loading}>
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save User
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              Create Teacher
             </Button>
           </DialogFooter>
         </form>

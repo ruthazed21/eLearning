@@ -67,7 +67,13 @@ export default function LoginPage() {
       if (role === 'admin') {
         router.push('/admin/dashboard');
       } else if (role === 'teacher') {
-        router.push('/teacher/dashboard');
+        if (response.user.approval_status === 'approved') {
+          router.push('/teacher/dashboard');
+        } else if (response.user.approval_status === 'rejected') {
+          router.push('/auth/pending?status=rejected');
+        } else {
+          router.push('/auth/pending');
+        }
       } else {
         router.push('/student/dashboard');
       }

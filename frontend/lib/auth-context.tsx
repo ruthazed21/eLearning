@@ -10,6 +10,7 @@ export interface User {
   role: 'student' | 'teacher' | 'admin';
   full_name: string;
   approval_status?: string;
+  email_verified?: boolean;
   [key: string]: any;
 }
 

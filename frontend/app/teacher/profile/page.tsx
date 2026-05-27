@@ -145,7 +145,7 @@ export default function TeacherProfilePage() {
   };
 
   return (
-    <RouteGuard allowedRoles={['teacher']}>
+    <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
     <DashboardLayout role="teacher" userName={user?.fullName || "Teacher"} userRole="Teacher">
       <div className="space-y-6 max-w-4xl">
         {/* Header */}

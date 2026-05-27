@@ -121,6 +121,33 @@ function buildResetEmailContent(code, expiryMinutes) {
   };
 }
 
+function buildEmailVerificationContent(verificationLink, expiryMinutes) {
+  const subject = 'EduAccess — Verify your email address';
+  const text = `Please verify your EduAccess email address by opening this link:\n\n${verificationLink}\n\nThis link expires in ${expiryMinutes} minutes.\n\nIf you did not create an account, you can ignore this email.`;
+  const html = `
+    <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; line-height: 1.4;">
+      <h2 style="color: #0f0f0f; margin-top: 0;">Verify your email</h2>
+      <p style="color: #333;">
+        Open the button below to verify that you own this email address.
+      </p>
+      <div style="margin: 18px 0;">
+        <a href="${verificationLink}"
+           style="display: inline-block; padding: 14px 18px; background: #fbbf24; color: #111827; text-decoration: none; font-weight: 700; border-radius: 10px;"
+           target="_blank" rel="noopener noreferrer">
+          Verify email
+        </a>
+      </div>
+      <p style="color: #666;">
+        This link expires in <strong>${expiryMinutes} minutes</strong>.
+      </p>
+      <p style="color: #666;">
+        If you did not create an account, you can safely ignore this email.
+      </p>
+    </div>
+  `;
+  return { subject, text, html };
+}
+
 function getFromAddress() {
   const { user } = getMailCredentials();
   return process.env.EMAIL_FROM || user || 'no-reply@eduaccess.com';
@@ -275,6 +302,118 @@ async function sendPasswordResetEmail(toEmail, code, expiryMinutes = 10) {
   );
 }
 
+async function sendEmailVerificationEmail(toEmail, verificationLink, expiryMinutes = 30) {
+  if (!toEmail) {
+    throw new Error('sendEmailVerificationEmail: toEmail is required');
+  }
+
+  const { subject, text, html } = buildEmailVerificationContent(verificationLink, expiryMinutes);
+  const from = getFromAddress();
+
+  // 1) Resend (HTTPS) — works when SMTP ports are blocked
+  if (isResendConfigured()) {
+    try {
+      logger.info('[mail] Sending email verification via Resend', { to: maskEmail(toEmail) });
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${(process.env.RESEND_API_KEY || '').trim()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from,
+          to: [toEmail],
+          subject,
+          html,
+          text,
+        }),
+      });
+
+      const bodyText = await response.text();
+      if (!response.ok) {
+        let detail = bodyText;
+        try {
+          detail = JSON.parse(bodyText).message || bodyText;
+        } catch {
+          /* keep raw */
+        }
+        throw new Error(`Resend API error: ${detail}`);
+      }
+
+      return { sent: true, provider: 'resend' };
+    } catch (err) {
+      logger.error('[mail] Resend verification email failed, falling back to SMTP', {
+        error: err.message,
+      });
+    }
+  }
+
+  // 2) SMTP with port fallback
+  if (isSmtpConfigured()) {
+    const profiles = buildSmtpProfiles();
+    const mailOptions = { from, to: toEmail, subject, text, html };
+    const errors = [];
+
+    for (const profile of profiles) {
+      try {
+        logger.info('[mail] Sending email verification via SMTP', {
+          to: maskEmail(toEmail),
+          profile: profile.label,
+        });
+
+        const transporter = createTransporterForProfile(profile);
+        if (!transporter) {
+          throw new Error('SMTP credentials missing');
+        }
+
+        const info = await transporter.sendMail(mailOptions);
+        logger.info('[mail] SMTP verification send succeeded', {
+          profile: profile.label,
+          messageId: info.messageId,
+        });
+        return { sent: true, provider: 'smtp', profile: profile.label, messageId: info.messageId };
+      } catch (err) {
+        errors.push({ profile: profile.label, message: err.message, code: err.code });
+      }
+    }
+
+    const summary = errors.map((e) => `${e.profile}:${e.message}`).join('; ');
+    if (process.env.NODE_ENV === 'development') {
+      console.log(
+        '\n========== EMAIL VERIFICATION LINK (email could not be sent) =========='
+      );
+      console.log(`Email:   ${toEmail}`);
+      console.log(`Link:    ${verificationLink}`);
+      console.log(`Expires: ${expiryMinutes} minutes`);
+      console.log('====================================================================\n');
+      return { sent: false, devLogged: true };
+    }
+
+    const err = new Error(
+      `All SMTP attempts failed (${summary}). ` +
+        'Use RESEND_API_KEY in .env (HTTPS) or try a different network.'
+    );
+    err.code = 'SMTP_ALL_FAILED';
+    err.attempts = errors;
+    throw err;
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log(
+      '\n========== EMAIL VERIFICATION LINK (email not configured) =========='
+    );
+    console.log(`Email:   ${toEmail}`);
+    console.log(`Link:    ${verificationLink}`);
+    console.log(`Expires: ${expiryMinutes} minutes`);
+    console.log('====================================================================\n');
+    return { sent: false, devLogged: true };
+  }
+
+  throw new Error(
+    'Email not configured. Set EMAIL_USER + EMAIL_PASS for SMTP, or RESEND_API_KEY for HTTPS delivery.'
+  );
+}
+
 async function verifyMailConnection() {
   if (isResendConfigured()) {
     logger.info('[mail] Resend API key present — skipping SMTP verify');
@@ -317,6 +456,7 @@ module.exports = {
   isResendConfigured,
   verifyMailConnection,
   sendPasswordResetEmail,
+  sendEmailVerificationEmail,
   getSmtpStatusForLogs,
   logSmtpEnvOnBoot,
   getMailCredentials,

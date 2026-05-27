@@ -1,6 +1,7 @@
  'use client';
 
 import { useState, useEffect } from 'react';
+import { useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -32,14 +33,39 @@ export default function SignupPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [verification, setVerification] = useState<null | {
+    verificationId: string;
+    clientKey: string;
+    status: 'pending' | 'expired' | 'verified';
+    email: string;
+    role: 'student' | 'teacher';
+    expiresAt?: string;
+    expiresInMinutes?: number;
+  }>(null);
+  const [verificationResendLoading, setVerificationResendLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const [accessibilityMode, setAccessibilityMode] = useState<AccessibilityMode>('default');
   const [mounted, setMounted] = useState(false);
+  const waitingHeadingRef = useRef<HTMLHeadingElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
     const saved = localStorage.getItem('accessibilityMode') as AccessibilityMode;
     if (saved) {
       setAccessibilityMode(saved);
+    }
+
+    // Resume pending signup verification (if user clicked the email link and navigated away).
+    try {
+      const raw = sessionStorage.getItem('pendingSignupVerification');
+      if (raw) {
+        const parsed = JSON.parse(raw) as typeof verification;
+        if (parsed?.verificationId && parsed?.clientKey && parsed?.status) {
+          setVerification(parsed);
+        }
+      }
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -78,9 +104,6 @@ export default function SignupPage() {
       if (!formData.department) {
         newErrors.department = 'Department is required';
       }
-      if (!formData.email.toLowerCase().startsWith('edu')) {
-        newErrors.email = 'Teacher email must start with "edu"';
-      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -107,12 +130,34 @@ export default function SignupPage() {
       }
 
       const response = await authAPI.signup(signupData);
-      login(response.token, response.user as User);
+      if (response?.verificationRequired && response?.verificationId && response?.clientKey) {
+        const nextVerification = {
+          verificationId: String(response.verificationId),
+          clientKey: String(response.clientKey),
+          status: 'pending' as const,
+          email: String(response.email || formData.email),
+          role: (String(response.role || formData.role) as 'student' | 'teacher') ?? formData.role,
+          expiresInMinutes: response?.expiresInMinutes ? Number(response.expiresInMinutes) : undefined,
+        };
 
-      if (formData.role === 'teacher') {
-        router.push('/teacher/dashboard');
+        sessionStorage.setItem('pendingSignupVerification', JSON.stringify(nextVerification));
+        setVerification(nextVerification);
+        return;
+      }
+
+      // Fallback (should not happen with the new backend, but keeps backward compatibility).
+      if (response?.token && response?.user) {
+        login(response.token, response.user as User);
+        if (formData.role === 'teacher' && response.user.approval_status !== 'approved') {
+          sessionStorage.setItem('pendingTeacherUser', JSON.stringify(response.user));
+          router.push('/auth/pending');
+        } else if (formData.role === 'teacher') {
+          router.push('/teacher/dashboard');
+        } else {
+          router.push('/student/dashboard');
+        }
       } else {
-        router.push('/student/dashboard');
+        setErrors({ server: 'Unexpected signup response from server.' });
       }
     } catch (error: any) {
       console.error('Signup error:', error);
@@ -122,6 +167,96 @@ export default function SignupPage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!verification) return;
+    setVerificationError(null);
+    setVerificationResendLoading(true);
+    try {
+      await authAPI.resendSignupVerification(verification.verificationId, verification.clientKey);
+      // Keep the user on the same waiting state; polling will pick up any updated expiry.
+      setVerification((prev) => (prev ? { ...prev, status: 'pending' } : prev));
+    } catch (err: any) {
+      const msg = err?.message || 'Could not resend verification email. Please try again.';
+      setVerificationError(msg);
+    } finally {
+      setVerificationResendLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!verification) return;
+    if (verification.status === 'pending' || verification.status === 'expired') {
+      waitingHeadingRef.current?.focus();
+    }
+  }, [verification?.status]);
+
+  useEffect(() => {
+    if (!verification) return;
+    if (verification.status !== 'pending') return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        setVerificationError(null);
+        const status = await authAPI.signupVerificationStatus(verification.verificationId, verification.clientKey);
+
+        if (cancelled) return;
+
+        if (status?.verified && status?.user) {
+          sessionStorage.removeItem('pendingSignupVerification');
+
+          // Teachers: email verified but admin approval still required — no dashboard access yet.
+          if (status.approvalPending || (status.user.role === 'teacher' && status.user.approval_status === 'pending')) {
+            sessionStorage.setItem('pendingTeacherUser', JSON.stringify(status.user));
+            router.push('/auth/pending');
+            return;
+          }
+
+          if (status.approvalRejected || status.user.approval_status === 'rejected') {
+            sessionStorage.setItem('pendingTeacherUser', JSON.stringify(status.user));
+            router.push('/auth/pending?status=rejected');
+            return;
+          }
+
+          if (status?.token) {
+            login(status.token, status.user as User);
+            if (status.user.role === 'teacher') {
+              router.push('/teacher/dashboard');
+            } else {
+              router.push('/student/dashboard');
+            }
+            return;
+          }
+        }
+
+        const nextStatus = status?.status === 'expired' ? 'expired' : 'pending';
+        setVerification((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: nextStatus,
+                expiresAt: status?.expiresAt ? String(status.expiresAt) : prev.expiresAt,
+                email: prev.email,
+                role: prev.role,
+              }
+            : prev
+        );
+      } catch (err: any) {
+        if (cancelled) return;
+        const msg = err?.message || 'Could not confirm verification status. Please request a new link.';
+        setVerificationError(msg);
+        setVerification((prev) => (prev ? { ...prev, status: 'expired' } : prev));
+      }
+    };
+
+    poll();
+    const interval = window.setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [verification?.verificationId, verification?.clientKey, verification?.status, login, router]);
+
   // --- THIS IS THE PART THAT HELPS THE READER ---
   const activeError = Object.values(errors)[0];
   const bgColor = accessibilityMode === 'blind' ? 'bg-black' : 'bg-slate-950';
@@ -129,17 +264,143 @@ export default function SignupPage() {
 
   if (!mounted) return null;
 
+  if (verification) {
+    const title =
+      verification.status === 'pending'
+        ? 'Verify your email'
+        : verification.status === 'expired'
+          ? 'Verification link expired'
+          : 'Email verified';
+
+    const expiresInMinutes =
+      verification.expiresInMinutes ??
+      (verification.expiresAt
+        ? Math.max(0, Math.ceil((new Date(verification.expiresAt).getTime() - Date.now()) / 60000))
+        : undefined);
+
+    const liveDetails =
+      verification.status === 'pending'
+        ? `We sent a verification link to ${verification.email}. Waiting for you to confirm.`
+        : verification.status === 'expired'
+          ? 'Your verification link has expired. You can request a new link.'
+          : 'Email verification completed.';
+
+    return (
+      <div className={'min-h-screen ' + bgColor + ' text-white flex flex-col'}>
+        <PublicHeader />
+
+        {/* 1. THE INVISIBLE VOICE READER */}
+        <div aria-live="assertive" className="sr-only">
+          {liveDetails}
+        </div>
+
+        <main id="main-content" className="flex-1 flex items-center justify-center p-6 lg:p-12">
+          <div className="w-full max-w-md bg-card rounded-2xl shadow-2xl border-2 border-border overflow-hidden">
+            <div className="p-8 lg:p-10">
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-6">
+                  <div className="w-16 h-16 bg-yellow-400 rounded-xl flex items-center justify-center">
+                    {verification.status === 'expired' ? (
+                      <AlertCircle className="h-10 w-10 text-slate-950" aria-hidden="true" />
+                    ) : (
+                      <GraduationCap className="h-10 w-10 text-slate-950" aria-hidden="true" />
+                    )}
+                  </div>
+                </div>
+                <h1
+                  ref={waitingHeadingRef}
+                  tabIndex={-1}
+                  className={(accessibilityMode === 'blind' ? 'text-4xl' : 'text-3xl') + ' font-bold text-slate-950 mb-2'}
+                >
+                  {title}
+                </h1>
+                <p className={textSize + ' text-slate-600'}>
+                  {verification.status === 'pending' ? (
+                    <>
+                      We sent a verification link to <span className="text-slate-900 font-semibold">{verification.email}</span>.
+                      {expiresInMinutes != null ? (
+                        <> This link expires in <span className="text-slate-900 font-semibold">{expiresInMinutes}</span> minutes.</>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>Please request a new verification link.</>
+                  )}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <p role="status" aria-live="polite" className={textSize + ' text-slate-100'}>
+                  {verification.status === 'pending'
+                    ? 'Waiting for your email verification...'
+                    : verification.status === 'expired'
+                      ? 'Verification link expired. Resend now.'
+                      : 'Email verified.'}
+                </p>
+
+                {verificationError ? (
+                  <p className="text-red-400 text-sm" role="alert">
+                    {verificationError}
+                  </p>
+                ) : null}
+
+                <div className="space-y-3 pt-2">
+                  <a
+                    href="https://mail.google.com/mail/u/0/#inbox"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={'block w-full ' + textSize + ' bg-yellow-400 text-slate-950 font-bold py-3 rounded-lg text-center hover:bg-yellow-300 transition-all'}
+                    aria-label="Open Gmail inbox"
+                  >
+                    Open Gmail
+                  </a>
+
+                  <a
+                    href={`mailto:${encodeURIComponent(verification.email)}?subject=${encodeURIComponent('EduAccess — Verify your email address')}`}
+                    className={'block w-full ' + textSize + ' bg-slate-800 text-white font-bold py-3 rounded-lg text-center hover:bg-slate-700 transition-all border-2 border-slate-600'}
+                    aria-label="Go to your email app"
+                  >
+                    Go to email
+                  </a>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    type="button"
+                    onClick={handleResendVerification}
+                    className={'w-full ' + textSize + ' bg-yellow-400 text-slate-950 font-bold py-3 rounded-lg hover:bg-yellow-300 transition-all'}
+                    disabled={verificationResendLoading}
+                    aria-label={verificationResendLoading ? 'Resending verification email' : 'Resend verification email'}
+                  >
+                    {verificationResendLoading ? 'Resending...' : 'Resend verification email'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <PublicFooter />
+      </div>
+    );
+  }
+
   return (
     <div className={'min-h-screen ' + bgColor + ' text-white flex flex-col'}>
       <PublicHeader />
       
       {/* 1. THE INVISIBLE VOICE READER */}
       <div aria-live="assertive" className="sr-only">
-        {isSubmitting 
-          ? "Creating your account, please wait." 
-          : activeError 
-            ? `Error: ${activeError}` 
-            : "Signup Page Loaded. Please fill out the form to create your account."}
+        {isSubmitting
+          ? 'Processing your signup. Please wait.'
+          : verification
+            ? verification.status === 'pending'
+              ? 'Verification email sent. Waiting for you to confirm.'
+              : verification.status === 'expired'
+                ? 'Your verification link has expired. You can resend it now.'
+                : 'Email verified.'
+            : activeError
+              ? `Error: ${activeError}`
+              : 'Signup Page Loaded. Please fill out the form to create your account.'}
       </div>
 
       <main id="main-content" className="flex-1 flex items-center justify-center p-6 lg:p-12">

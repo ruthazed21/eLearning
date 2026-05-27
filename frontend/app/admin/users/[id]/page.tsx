@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/tooltip';
 import { 
   ArrowLeft, 
-  Edit, 
+  Settings2, 
   Trash2, 
   BookOpen, 
   Calendar,
@@ -32,7 +32,7 @@ import {
   TrendingUp,
   Clock
 } from 'lucide-react';
-import { EditUserDialog } from '@/components/dialogs/edit-user-dialog';
+import { TeacherStatusDialog } from '@/components/dialogs/teacher-status-dialog';
 import { DeleteConfirmDialog } from '@/components/dialogs/delete-confirm-dialog';
 
 interface EnrolledCourse {
@@ -109,8 +109,9 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
   ]);
 
   // State for dialogs
-  const [editingUser, setEditingUser] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
+  const isTeacher = user.role.toLowerCase() === 'teacher';
 
   // Handlers
   const handleDeleteUser = () => {
@@ -163,22 +164,25 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
           <div className="flex gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setEditingUser(true)}
-                  >
-                    <Edit className="h-4 w-4" aria-hidden="true" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit user</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {isTeacher && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setStatusDialogOpen(true)}
+                      aria-label={`Change status for ${user.name}`}
+                    >
+                      <Settings2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Change teacher status</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
 
             <TooltipProvider>
               <Tooltip>
@@ -351,18 +355,12 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         </Card>
       </div>
 
-      {/* Edit User Dialog */}
-      {editingUser && (
-        <EditUserDialog
-          user={user}
-          open={editingUser}
-          onOpenChange={setEditingUser}
-          onSave={(updatedUser) => {
-            setUser(updatedUser);
-            console.log('User updated:', updatedUser);
-          }}
-        />
-      )}
+      <TeacherStatusDialog
+        user={user}
+        open={statusDialogOpen}
+        onOpenChange={setStatusDialogOpen}
+        onSave={(updatedUser) => setUser(updatedUser)}
+      />
 
       {/* Delete User Confirmation */}
       <DeleteConfirmDialog

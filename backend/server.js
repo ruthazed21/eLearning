@@ -151,6 +151,14 @@ async function startServer() {
     logger.error('Password reset schema check failed', { error: err.message });
   }
 
+  // Ensure the email verification schema exists (idempotent).
+  try {
+    const { ensureEmailVerificationSchema } = require('./utils/ensureEmailVerificationSchema');
+    await ensureEmailVerificationSchema(pool);
+  } catch (err) {
+    logger.error('Email verification schema check failed', { error: err.message });
+  }
+
   logSmtpEnvOnBoot();
 
   app.listen(PORT, () => {

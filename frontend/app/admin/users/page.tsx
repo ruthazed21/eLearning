@@ -25,9 +25,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Search, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Search, Settings2, Trash2, Loader2 } from 'lucide-react';
 import { AddUserDialog } from '@/components/dialogs/add-user-dialog';
-import { EditUserDialog } from '@/components/dialogs/edit-user-dialog';
+import { TeacherStatusDialog } from '@/components/dialogs/teacher-status-dialog';
 import { DeleteConfirmDialog } from '@/components/dialogs/delete-confirm-dialog';
 
 interface User {
@@ -51,7 +51,7 @@ export default function AdminUsersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearch = useDebounce(searchQuery, 300);
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [statusUser, setStatusUser] = useState<User | null>(null);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
   // Fetch all users once on mount
@@ -93,7 +93,7 @@ export default function AdminUsersPage() {
         !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
       return matchesRole && matchesSearch;
     });
-  }, [users, roleFilter, searchQuery]);
+  }, [users, roleFilter, debouncedSearch]);
 
   const handleDelete = async () => {
     if (!deletingUser) return;
@@ -124,10 +124,12 @@ export default function AdminUsersPage() {
     setUsers((prev) => [mapped, ...prev]);
   };
 
-  const handleUserUpdated = (updatedUser: User) => {
+  const handleUserStatusUpdated = (updatedUser: User) => {
     setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
-    setEditingUser(null);
+    setStatusUser(null);
   };
+
+  const isTeacher = (role: string) => role.toLowerCase() === 'teacher';
 
   return (
     <RouteGuard allowedRoles={['admin']}>
@@ -240,24 +242,26 @@ export default function AdminUsersPage() {
                       <TableCell>{user.joined}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setEditingUser(user)}
-                                  aria-label={`Edit ${user.name}`}
-                                  disabled={processingId === user.id}
-                                >
-                                  <Edit className="h-4 w-4" aria-hidden="true" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Edit user</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                          {isTeacher(user.role) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setStatusUser(user)}
+                                    aria-label={`Change status for ${user.name}`}
+                                    disabled={processingId === user.id}
+                                  >
+                                    <Settings2 className="h-4 w-4" aria-hidden="true" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Change teacher status</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
 
                           <TooltipProvider>
                             <Tooltip>
@@ -292,12 +296,11 @@ export default function AdminUsersPage() {
         </Card>
       </div>
 
-      {/* Edit Dialog */}
-      <EditUserDialog
-        user={editingUser}
-        open={!!editingUser}
-        onOpenChange={(open) => !open && setEditingUser(null)}
-        onSave={handleUserUpdated}
+      <TeacherStatusDialog
+        user={statusUser}
+        open={!!statusUser}
+        onOpenChange={(open) => !open && setStatusUser(null)}
+        onSave={handleUserStatusUpdated}
       />
 
       {/* Delete Confirmation */}

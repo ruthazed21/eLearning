@@ -345,7 +345,6 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    assertAuthPayload(res);
     return res;
   },
 
@@ -379,7 +378,6 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ ...data, role: 'student' }),
     });
-    assertAuthPayload(res);
     return res;
   },
 
@@ -394,8 +392,20 @@ export const authAPI = {
       method: 'POST',
       body: JSON.stringify({ ...data, role: 'teacher' }),
     });
-    assertAuthPayload(res);
     return res;
+  },
+
+  signupVerificationStatus: async (verificationId: string, clientKey: string) => {
+    return apiRequest(
+      `/auth/signup/verification-status?verificationId=${encodeURIComponent(verificationId)}&clientKey=${encodeURIComponent(clientKey)}`
+    );
+  },
+
+  resendSignupVerification: async (verificationId: string, clientKey: string) => {
+    return apiRequest('/auth/signup/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ verificationId, clientKey }),
+    });
   },
 
   resetPassword: async (email: string, newPassword: string) => {
@@ -438,6 +448,13 @@ export const usersAPI = {
     apiRequest(`/users/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    }),
+
+  /** Admin only: change teacher approval_status (approved | pending | rejected). */
+  updateTeacherStatus: (id: number, approval_status: 'approved' | 'pending' | 'rejected') =>
+    apiRequest(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ approval_status }),
     }),
 
   delete: (id: number) =>

@@ -239,7 +239,7 @@ export default function TeacherDashboard() {
   ] as const;
 
   return (
-    <RouteGuard allowedRoles={['teacher']}>
+    <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
     <DashboardLayout role="teacher" userName={user?.full_name || 'Teacher'} userRole="Teacher">
       <KeyboardShortcutsHelp shortcuts={keyboardShortcuts} />
       <div className="space-y-6">

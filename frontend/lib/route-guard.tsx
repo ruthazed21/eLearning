@@ -3,17 +3,21 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './auth-context';
+import { getTeacherApprovalRedirect, isTeacherApproved } from './teacher-approval';
 
 interface RouteGuardProps {
   children: React.ReactNode;
   allowedRoles?: ('student' | 'teacher' | 'admin')[];
   requireAuth?: boolean;
+  /** When true, teachers with pending/rejected approval cannot view this route. */
+  requireTeacherApproval?: boolean;
 }
 
 export function RouteGuard({
   children,
   allowedRoles,
   requireAuth = true,
+  requireTeacherApproval = false,
 }: RouteGuardProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -21,21 +25,31 @@ export function RouteGuard({
   useEffect(() => {
     if (loading) return;
 
-    // If authentication is required but user is not logged in
     if (requireAuth && !user) {
       router.push('/');
       return;
     }
 
-    // If specific roles are required, check if user has the right role
+    // Block teacher dashboard/protected pages until admin approves the account.
+    if (user && requireTeacherApproval && user.role === 'teacher') {
+      const redirect = getTeacherApprovalRedirect(user);
+      if (redirect) {
+        router.replace(redirect);
+        return;
+      }
+    }
+
     if (user && allowedRoles && !allowedRoles.includes(user.role)) {
-      // Redirect to appropriate dashboard based on role
       switch (user.role) {
         case 'student':
           router.push('/student/dashboard');
           break;
         case 'teacher':
-          router.push('/teacher/dashboard');
+          if (isTeacherApproved(user)) {
+            router.push('/teacher/dashboard');
+          } else {
+            router.replace(getTeacherApprovalRedirect(user) || '/auth/pending');
+          }
           break;
         case 'admin':
           router.push('/admin/dashboard');
@@ -44,26 +58,30 @@ export function RouteGuard({
           router.push('/');
       }
     }
-  }, [user, loading, allowedRoles, requireAuth, router]);
+  }, [user, loading, allowedRoles, requireAuth, requireTeacherApproval, router]);
 
-  // Show loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen" role="status" aria-live="polite">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-400 mx-auto"
+            aria-hidden="true"
+          />
+          <p className="mt-4 text-lg text-white">Loading…</p>
         </div>
       </div>
     );
   }
 
-  // If not authenticated and auth is required, don't render children
   if (requireAuth && !user) {
     return null;
   }
 
-  // If user doesn't have the right role, don't render children
+  if (user && requireTeacherApproval && user.role === 'teacher' && !isTeacherApproved(user)) {
+    return null;
+  }
+
   if (user && allowedRoles && !allowedRoles.includes(user.role)) {
     return null;
   }

@@ -216,7 +216,7 @@ export default function UploadPage() {
   ];
 
   return (
-    <RouteGuard allowedRoles={['teacher']}>
+    <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
       <DashboardLayout role="teacher" userName={user?.full_name || 'Teacher'} userRole="Teacher">
         <KeyboardShortcutsHelp shortcuts={keyboardShortcuts} />
         <div className="space-y-8">

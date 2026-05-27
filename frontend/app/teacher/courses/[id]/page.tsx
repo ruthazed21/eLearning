@@ -276,7 +276,7 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
 
   if (loading && !course) {
     return (
-      <RouteGuard allowedRoles={['teacher']}>
+      <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
         <DashboardLayout role="teacher" userName="Teacher" userRole="Teacher">
           <div className="flex items-center justify-center min-h-[400px]">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -288,7 +288,7 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
 
   if (error && !course) {
     return (
-      <RouteGuard allowedRoles={['teacher']}>
+      <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
         <DashboardLayout role="teacher" userName="Teacher" userRole="Teacher">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <h2 className="text-lg font-semibold text-red-800 mb-2">Error Loading Course</h2>
@@ -303,7 +303,7 @@ export default function TeacherCourseDetailPage({ params }: { params: Promise<{ 
   if (!course) return null;
 
   return (
-    <RouteGuard allowedRoles={['teacher']}>
+    <RouteGuard allowedRoles={['teacher']} requireTeacherApproval>
       <DashboardLayout role="teacher" userName="Teacher" userRole="Teacher">
         <div className="space-y-6">
           {/* Inline error alert */}
