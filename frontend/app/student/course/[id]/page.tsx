@@ -386,6 +386,13 @@ export default function CourseDetailPage({ params: paramsPromise }: { params: Pr
                           src={getVideoUrl(currentLesson.video_url)} 
                           subtitleSrc={getSubtitleUrl(currentLesson.subtitle_url)}
                         />
+                        {/* Show a non-intrusive notice when subtitles are still being generated */}
+                        {!currentLesson.subtitle_url && (
+                          <div className="flex items-center gap-2 px-3 py-2 bg-gray-800 text-gray-400 text-xs rounded-b-lg">
+                            <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                            <span>Generating subtitles from video audio… Refresh the page in a few minutes to load them.</span>
+                          </div>
+                        )}
                       </div>
                     )}
 

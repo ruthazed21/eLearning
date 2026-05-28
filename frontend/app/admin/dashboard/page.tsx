@@ -436,8 +436,8 @@ export default function AdminDashboard() {
         user={statusUser}
         open={!!statusUser}
         onOpenChange={(open) => !open && setStatusUser(null)}
-        onSave={(updatedUser) => {
-          setRecentUsers(recentUsers.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+        onSave={(updatedUser: any) => {
+          setRecentUsers(recentUsers.map((u) => (u.id === updatedUser.id ? { ...updatedUser, joined: updatedUser.joined || u.joined } as User : u)));
           fetchDashboardData();
         }}
       />

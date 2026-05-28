@@ -410,6 +410,14 @@ router.post(
       if (error && error.code === 'E_EMAIL_VERIFICATION_SECRET') {
         return res.status(500).json({ error: 'Server misconfiguration: email verification secret is not set' });
       }
+      // Surface DB errors in development so they are visible in the browser console
+      if (process.env.NODE_ENV !== 'production') {
+        return res.status(500).json({
+          error: 'Registration failed',
+          detail: error.message || String(error),
+          code: error.code || undefined,
+        });
+      }
       res.status(500).json({ error: 'Registration failed' });
     }
   }
@@ -577,6 +585,11 @@ router.get(
     const clientKey = String(req.query.clientKey || '').trim();
 
     try {
+      // Prevent the browser from caching this polling response — the status
+      // changes from 'pending' → 'verified' and a stale 304 would hide that.
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.set('Pragma', 'no-cache');
+
       const recordRes = await pool.query(
         `SELECT id, email, role, status, user_id, verification_expires_at
          FROM email_verification_signups

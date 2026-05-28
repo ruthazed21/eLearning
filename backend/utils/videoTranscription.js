@@ -3,7 +3,6 @@ const path = require('path');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
 const logger = require('../logger');
-const { generateSubtitlesAndTranscript } = require('./accessibility');
 
 const execFileAsync = promisify(execFile);
 
@@ -11,20 +10,25 @@ const execFileAsync = promisify(execFile);
 let transcriberPromise = null;
 
 /**
- * Resolve FFmpeg binary: FFMPEG_PATH env, ffmpeg-static npm bundle, or "ffmpeg" on PATH.
+ * Resolve FFmpeg binary.
+ * Priority: FFMPEG_PATH env var → system "ffmpeg" on PATH → ffmpeg-static npm bundle.
+ * The .env already sets FFMPEG_PATH=ffmpeg which points to the system install.
  */
 function getFfmpegCommand() {
+  // 1. Explicit env override (e.g. FFMPEG_PATH=ffmpeg or full path)
   if (process.env.FFMPEG_PATH) {
     return process.env.FFMPEG_PATH;
   }
+  // 2. ffmpeg-static npm bundle (may not have the .exe if installed with --ignore-scripts)
   try {
     const ffmpegStatic = require('ffmpeg-static');
-    if (ffmpegStatic) {
+    if (ffmpegStatic && fs.existsSync(ffmpegStatic)) {
       return ffmpegStatic;
     }
   } catch (_) {
     /* optional dependency */
   }
+  // 3. System ffmpeg on PATH
   return 'ffmpeg';
 }
 
@@ -175,15 +179,17 @@ async function transcribeAudioWithWhisper(audioPath) {
 
 /**
  * Full pipeline: video → FFmpeg audio → Whisper → .vtt + transcript.
- * Falls back to template captions if FFmpeg/Whisper fails (when title is provided).
  *
- * @param {string} videoPath - Absolute path to uploaded video.
+ * NO fake/template fallback. If FFmpeg or Whisper fails, this throws so the
+ * caller can handle the error explicitly (e.g. mark the lesson as
+ * "subtitles pending" rather than storing fake captions).
+ *
+ * @param {string} videoPath    - Absolute path to uploaded video.
  * @param {string} subtitlePath - Absolute path for output .vtt.
- * @param {{ title?: string, description?: string }} [options] - Used only for template fallback.
- * @returns {Promise<{ transcript: string, source: 'whisper' | 'template-fallback' }>}
+ * @returns {Promise<{ transcript: string, source: 'whisper' }>}
+ * @throws {Error} if FFmpeg extraction or Whisper transcription fails.
  */
-async function transcribeVideoToSubtitles(videoPath, subtitlePath, options = {}) {
-  const { title = 'Untitled Lesson', description = '' } = options;
+async function transcribeVideoToSubtitles(videoPath, subtitlePath) {
   const tempDir = path.join(path.dirname(subtitlePath), '..', 'temp-audio');
   const tempAudioPath = path.join(tempDir, `stt-${Date.now()}-${Math.round(Math.random() * 1e9)}.wav`);
 
@@ -192,40 +198,43 @@ async function transcribeVideoToSubtitles(videoPath, subtitlePath, options = {})
       throw new Error(`Video file not found: ${videoPath}`);
     }
 
+    // Step 1: Extract mono 16 kHz WAV from the video using FFmpeg
     await extractAudioFromVideo(videoPath, tempAudioPath);
+
+    // Step 2: Run Whisper on the extracted audio
     const chunks = await transcribeAudioWithWhisper(tempAudioPath);
 
+    // Step 3: Build VTT and plain-text transcript from Whisper segments
     const vttContent = buildVttFromChunks(chunks);
     const transcript = buildTranscriptFromChunks(chunks);
 
     if (!transcript.trim()) {
-      throw new Error('Transcription produced no usable text');
+      throw new Error('Whisper returned empty transcription — the video may be silent or contain no speech');
     }
 
+    // Step 4: Write the VTT file
     const subDir = path.dirname(subtitlePath);
     if (!fs.existsSync(subDir)) {
       fs.mkdirSync(subDir, { recursive: true });
     }
     fs.writeFileSync(subtitlePath, vttContent, 'utf8');
+
     logger.info('Real STT subtitles generated from video audio', {
       subtitlePath,
       segmentCount: chunks.length,
     });
 
     return { transcript, source: 'whisper' };
-  } catch (error) {
-    logger.error('Video STT failed; using template subtitle fallback', {
-      error: error.message,
-      videoPath,
-    });
-    const fallback = generateSubtitlesAndTranscript(title, description, subtitlePath);
-    return { transcript: fallback.transcript, source: 'template-fallback' };
   } finally {
+    // Always clean up the temporary WAV file
     if (fs.existsSync(tempAudioPath)) {
       try {
         fs.unlinkSync(tempAudioPath);
       } catch (cleanupErr) {
-        logger.warn('Could not delete temp STT audio file', { tempAudioPath, error: cleanupErr.message });
+        logger.warn('Could not delete temp STT audio file', {
+          tempAudioPath,
+          error: cleanupErr.message,
+        });
       }
     }
   }

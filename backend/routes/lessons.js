@@ -38,6 +38,46 @@ const deleteLocalFile = (filePath) => {
   }
 };
 
+/**
+ * Run Whisper STT in the background after a lesson is saved.
+ * Updates the lesson row in the DB when transcription completes.
+ * Does NOT generate fake/template captions on failure — logs the error instead.
+ *
+ * @param {number} lessonId       - DB id of the lesson to update.
+ * @param {string} fullVideoPath  - Absolute path to the uploaded video file.
+ * @param {string} subtitlePath   - Absolute path where the .vtt should be written.
+ * @param {string} subtitleUrl    - Relative URL to store in the DB (e.g. /uploads/subtitles/…).
+ */
+async function runSttInBackground(lessonId, fullVideoPath, subtitlePath, subtitleUrl) {
+  try {
+    console.log(`[STT] Starting background transcription for lesson ${lessonId}`);
+    const stt = await transcribeVideoToSubtitles(fullVideoPath, subtitlePath);
+
+    await pool.query(
+      `UPDATE lessons
+         SET subtitle_url = $1,
+             transcript   = $2,
+             updated_at   = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [subtitleUrl, stt.transcript, lessonId]
+    );
+
+    console.log(`[STT] Subtitles saved for lesson ${lessonId} (source: ${stt.source})`);
+  } catch (err) {
+    // Log the real error — do NOT write fake captions
+    console.error(`[STT] Transcription failed for lesson ${lessonId}:`, err.message);
+    // Mark the lesson so the teacher knows subtitles are unavailable
+    await pool.query(
+      `UPDATE lessons
+         SET subtitle_url = NULL,
+             transcript   = NULL,
+             updated_at   = CURRENT_TIMESTAMP
+       WHERE id = $1`,
+      [lessonId]
+    ).catch((dbErr) => console.error('[STT] Failed to clear subtitle_url after STT error:', dbErr.message));
+  }
+}
+
 // Configure multer for video and subtitle uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -231,6 +271,7 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
     if (finalVideoUrl) {
       const manualSubtitleUpload = Boolean(req.files?.subtitle?.[0]);
       if (manualSubtitleUpload && finalSubtitleUrl) {
+        // Teacher uploaded a real .vtt — parse it to plain-text transcript
         try {
           const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
           if (fs.existsSync(fullSubPath)) {
@@ -240,22 +281,9 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
         } catch (subErr) {
           console.error('Error reading manual subtitle file:', subErr);
         }
-      } else if (!finalSubtitleUrl) {
-        try {
-          const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
-          const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
-          const fullVideoPath = path.join(__dirname, '..', finalVideoUrl);
-
-          const stt = await transcribeVideoToSubtitles(fullVideoPath, subtitlePath, {
-            title,
-            description,
-          });
-          finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
-          transcript = stt.transcript;
-        } catch (sttErr) {
-          console.error('Error generating automated subtitles from video:', sttErr);
-        }
       }
+      // If no manual subtitle was uploaded, Whisper will run in the background
+      // after the lesson is saved. subtitle_url stays null until STT completes.
     }
 
     const result = await pool.query(
@@ -271,7 +299,20 @@ router.post('/', authenticateToken, checkRole('teacher', 'admin'), upload.fields
       ]
     );
 
-    res.status(201).json(result.rows[0]);
+    const savedLesson = result.rows[0];
+
+    // Kick off background STT if a video was uploaded without a manual subtitle
+    if (finalVideoUrl && !finalSubtitleUrl) {
+      const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
+      const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+      const fullVideoPath = path.join(__dirname, '..', finalVideoUrl);
+      const subtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
+
+      // Fire-and-forget — do not await so the HTTP response is sent immediately
+      runSttInBackground(savedLesson.id, fullVideoPath, subtitlePath, subtitleUrl);
+    }
+
+    res.status(201).json(savedLesson);
   } catch (error) {
     console.error('Create lesson error:', error);
     res.status(500).json({ error: 'Failed to create lesson' });
@@ -401,6 +442,7 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
 
     // Re-generate captions when a new video is uploaded, or parse manual VTT upload
     if (subtitleChanged && finalSubtitleUrl) {
+      // Teacher uploaded a real .vtt — parse it to plain-text transcript
       try {
         const fullSubPath = path.join(__dirname, '..', finalSubtitleUrl);
         if (fs.existsSync(fullSubPath)) {
@@ -411,23 +453,11 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
         console.error('Error reading manual subtitle file:', subErr);
       }
     } else if (videoChanged && finalVideoUrl) {
-      try {
-        deleteLocalFile(finalSubtitleUrl);
-        const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
-        const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
-        const fullVideoPath = path.join(__dirname, '..', finalVideoUrl);
-        const updatedTitle = title !== undefined ? title : lessonData.title;
-        const updatedDesc = description !== undefined ? description : lessonData.description;
-
-        const stt = await transcribeVideoToSubtitles(fullVideoPath, subtitlePath, {
-          title: updatedTitle,
-          description: updatedDesc,
-        });
-        finalSubtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
-        transcript = stt.transcript;
-      } catch (sttErr) {
-        console.error('Error re-generating subtitles from video:', sttErr);
-      }
+      // New video uploaded without a manual subtitle — delete old subtitle and
+      // let Whisper regenerate in the background after we respond.
+      deleteLocalFile(lessonData.subtitle_url);
+      finalSubtitleUrl = null; // will be set by background STT
+      transcript = null;
     }
 
     const result = await pool.query(
@@ -436,11 +466,11 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
            description = COALESCE($2, description),
            content = COALESCE($3, content),
            video_url = COALESCE($4, video_url),
-           subtitle_url = COALESCE($5, subtitle_url),
+           subtitle_url = $5,
            document_url = COALESCE($6, document_url),
            audio_url = COALESCE($7, audio_url),
            extracted_text = COALESCE($8, extracted_text),
-           transcript = COALESCE($9, transcript),
+           transcript = $9,
            order_index = COALESCE($10, order_index),
            duration_minutes = COALESCE($11, duration_minutes),
            updated_at = CURRENT_TIMESTAMP
@@ -456,10 +486,88 @@ router.put('/:id', authenticateToken, checkRole('teacher', 'admin'), upload.fiel
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
-    res.json(result.rows[0]);
+    const savedLesson = result.rows[0];
+
+    // Kick off background STT if a new video was uploaded without a manual subtitle
+    if (videoChanged && finalVideoUrl && !subtitleChanged) {
+      const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
+      const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+      const fullVideoPath = path.join(__dirname, '..', finalVideoUrl);
+      const subtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
+
+      // Fire-and-forget — do not await so the HTTP response is sent immediately
+      runSttInBackground(savedLesson.id, fullVideoPath, subtitlePath, subtitleUrl);
+    }
+
+    res.json(savedLesson);
   } catch (error) {
     console.error('Update lesson error:', error);
     res.status(500).json({ error: 'Failed to update lesson' });
+  }
+});
+
+/**
+ * POST /api/lessons/:id/regenerate-subtitles
+ * Manually trigger Whisper STT for a lesson that has a video but no subtitles,
+ * or to replace existing subtitles with a fresh transcription.
+ * Responds immediately with 202 Accepted; STT runs in the background.
+ */
+router.post('/:id/regenerate-subtitles', authenticateToken, checkRole('teacher', 'admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existing = await pool.query(
+      'SELECT video_url, subtitle_url FROM lessons WHERE id = $1',
+      [id]
+    );
+
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Lesson not found' });
+    }
+
+    const lesson = existing.rows[0];
+
+    if (!lesson.video_url) {
+      return res.status(400).json({ error: 'This lesson has no video — subtitles cannot be generated.' });
+    }
+
+    // Check ownership for teachers
+    if (req.user.role === 'teacher') {
+      const ownerCheck = await pool.query(
+        `SELECT c.teacher_id FROM courses c
+         JOIN lessons l ON c.id = l.course_id
+         WHERE l.id = $1`,
+        [id]
+      );
+      if (ownerCheck.rows.length === 0 || ownerCheck.rows[0].teacher_id !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
+    // Delete old subtitle file if present
+    deleteLocalFile(lesson.subtitle_url);
+
+    // Clear subtitle_url and transcript so the frontend shows "Generating…"
+    await pool.query(
+      `UPDATE lessons SET subtitle_url = NULL, transcript = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [id]
+    );
+
+    const uniqueSubName = `subtitle-${Date.now()}-${Math.round(Math.random() * 1e9)}.vtt`;
+    const subtitlePath = path.join(__dirname, '../uploads/subtitles', uniqueSubName);
+    const fullVideoPath = path.join(__dirname, '..', lesson.video_url);
+    const subtitleUrl = `/uploads/subtitles/${uniqueSubName}`;
+
+    // Fire-and-forget background STT
+    runSttInBackground(Number(id), fullVideoPath, subtitlePath, subtitleUrl);
+
+    res.status(202).json({
+      message: 'Subtitle generation started. Subtitles will be available shortly.',
+      lessonId: id,
+    });
+  } catch (error) {
+    console.error('Regenerate subtitles error:', error);
+    res.status(500).json({ error: 'Failed to start subtitle generation' });
   }
 });
 

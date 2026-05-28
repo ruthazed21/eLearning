@@ -33,10 +33,16 @@ function isDevLocalOrigin(origin) {
   if (!origin || typeof origin !== 'string') return false;
   try {
     const u = new URL(origin);
-    return (
-      (u.hostname === 'localhost' || u.hostname === '127.0.0.1') &&
-      (u.protocol === 'http:' || u.protocol === 'https:')
-    );
+    const host = u.hostname;
+    // Allow loopback
+    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return true;
+    // Allow mDNS local domain suffixes
+    if (host.endsWith('.local')) return true;
+    // Allow private IPv4 networks (10.x, 172.16.x-172.31.x, 192.168.x)
+    if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+    if (/^172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+    if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)) return true;
+    return false;
   } catch {
     return false;
   }

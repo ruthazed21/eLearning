@@ -89,7 +89,7 @@ export default function Home() {
                   className={`bg-yellow-400 text-slate-950 hover:bg-yellow-300 focus:ring-4 focus:ring-yellow-400 focus:ring-offset-2 font-semibold transition-all ${textSize} ${visualCue}`}
                   aria-label="Sign up for free account with your BDU Student ID"
                 >
-                  Sign Up with Student ID
+                  Sign Up 
                 </Button>
               </Link>
             </div>
@@ -147,7 +147,7 @@ export default function Home() {
                       } transition-all ${visualCue}`}
                       aria-label="Sign up with your Bahir Dar University Student ID"
                     >
-                      Sign Up with Student ID
+                      Sign Up 
                       <ChevronRight className="ml-2 h-5 w-5" aria-hidden="true" />
                     </Button>
                   </Link>
@@ -309,7 +309,7 @@ export default function Home() {
                     } transition-all`}
                     aria-label="Create your free account with BDU Student ID"
                   >
-                    Sign Up with Student ID
+                    Sign Up 
                     <ChevronRight className="ml-2 h-6 w-6" aria-hidden="true" />
                   </Button>
                 </Link>
@@ -418,23 +418,13 @@ export default function Home() {
               <ul className="space-y-3">
                 <li>
                   <Link 
-                    href="/admin/feedback" 
+                    href="/contact" 
                     className={`text-white/60 hover:text-white focus:text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors ${
                       accessibilityMode === 'blind' ? 'text-lg' : 'text-base'
                     }`}
                   >
                     Contact Us
                   </Link>
-                </li>
-                <li>
-                  <a 
-                    href="#cta-heading" 
-                    className={`text-white/60 hover:text-white focus:text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors ${
-                      accessibilityMode === 'blind' ? 'text-lg' : 'text-base'
-                    }`}
-                  >
-                    Get Help
-                  </a>
                 </li>
               </ul>
             </nav>

@@ -121,23 +121,13 @@ export default function PublicFooter() {
             <ul className="space-y-3">
               <li>
                 <Link 
-                  href="/admin/feedback" 
+                  href="/contact" 
                   className={`text-white/60 hover:text-white focus:text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors ${
                     accessibilityMode === 'blind' ? 'text-lg' : 'text-base'
                   }`}
                 >
                   Contact Us
                 </Link>
-              </li>
-              <li>
-                <a 
-                  href="/#cta-heading" 
-                  className={`text-white/60 hover:text-white focus:text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-colors ${
-                    accessibilityMode === 'blind' ? 'text-lg' : 'text-base'
-                  }`}
-                >
-                  Get Help
-                </a>
               </li>
             </ul>
           </nav>

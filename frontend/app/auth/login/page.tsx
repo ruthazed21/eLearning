@@ -120,7 +120,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} autoComplete="on" className="space-y-5">
               {/* Login Error */}
               {loginError && (
                 <div className="bg-red-50 border-2 border-red-300 rounded-xl p-4" role="alert">
@@ -142,6 +142,7 @@ export default function LoginPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="student@example.com"
+                  autoComplete="email"
                   aria-invalid={!!errors.email}
                   aria-describedby={errors.email ? 'email-error' : undefined}
                   className={`${textSize} text-slate-950 border-2 border-slate-300 focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/20 rounded-lg px-4 py-3`}
@@ -173,6 +174,7 @@ export default function LoginPage() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                   aria-invalid={!!errors.password}
                   aria-describedby={errors.password ? 'password-error' : undefined}
                   className={`${textSize} text-slate-950 border-2 border-slate-300 focus:border-yellow-400 focus:ring-4 focus:ring-yellow-400/20 rounded-lg px-4 py-3`}

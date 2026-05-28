@@ -359,7 +359,7 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
         user={user}
         open={statusDialogOpen}
         onOpenChange={setStatusDialogOpen}
-        onSave={(updatedUser) => setUser(updatedUser)}
+        onSave={(updatedUser: any) => setUser({ ...user, ...updatedUser, joined: updatedUser.joined || user.joined } as User)}
       />
 
       {/* Delete User Confirmation */}

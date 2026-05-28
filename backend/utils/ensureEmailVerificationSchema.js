@@ -45,6 +45,8 @@ async function ensureEmailVerificationSchema(pool) {
       ALTER TABLE users
       ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT false;
     `);
+
+    logger.info('[schema] email_verification_signups table OK');
   } catch (err) {
     logger.error('[schema] Failed to ensure email verification schema', {
       error: err.message,
@@ -54,6 +56,7 @@ async function ensureEmailVerificationSchema(pool) {
     // If triggers/function don't exist, it is still safe to proceed without them.
     // The table/columns are created above regardless.
     if (String(err.message || '').includes('update_updated_at_column')) return;
+    // Re-throw so server startup logs the real reason signup will fail
     throw err;
   }
 }

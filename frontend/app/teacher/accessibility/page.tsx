@@ -5,7 +5,6 @@ import { DashboardLayout } from '@/components/dashboard-layout-new';
 import { RouteGuard } from '@/lib/route-guard';
 import { useAuth } from '@/lib/auth-context';
 import { lessonsAPI, coursesAPI, feedbackAPI } from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useCommonShortcuts } from '@/hooks/use-keyboard-shortcuts';
@@ -129,7 +128,6 @@ export default function TeacherAccessibilityPage() {
   const [materials, setMaterials] = useState<Material[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [accessibilityReports, setAccessibilityReports] = useState<AccessibilityReport[]>([]);
 
   useEffect(() => {
     if (user?.id) fetchMaterials(user.id);
@@ -144,20 +142,19 @@ export default function TeacherAccessibilityPage() {
       let reports: AccessibilityReport[] = [];
       try {
         const teacherFeedback = await feedbackAPI.getTeacherAccessibility();
-        reports = teacherFeedback;
-        setAccessibilityReports(reports);
+        reports = teacherFeedback as AccessibilityReport[];
       } catch (err) {
         console.error('Failed to fetch accessibility reports:', err);
         // Continue even if reports fail to load
       }
 
-      const courses = await coursesAPI.getAll({ teacherId });
+      const courses = await coursesAPI.getAll({ teacherId }) as any[];
       const allMaterials: Material[] = [];
 
       await Promise.all(
         courses.map(async (course: any) => {
           try {
-            const lessons = await lessonsAPI.getByCourse(course.id);
+            const lessons = await lessonsAPI.getByCourse(course.id) as any[];
             lessons.forEach((lesson: any) => {
               allMaterials.push(scoreMaterial(lesson, course.title, reports));
             });
@@ -335,21 +332,21 @@ export default function TeacherAccessibilityPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-blue-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <CheckCircle className="h-5 w-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <p className="font-medium text-blue-900">Videos</p>
                   <p className="text-sm text-blue-800">Include captions, transcripts, and audio descriptions</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-blue-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <CheckCircle className="h-5 w-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <p className="font-medium text-blue-900">Descriptions</p>
                   <p className="text-sm text-blue-800">Add detailed lesson descriptions so students know what to expect</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-blue-700 flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <CheckCircle className="h-5 w-5 text-blue-700 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <p className="font-medium text-blue-900">Duration</p>
                   <p className="text-sm text-blue-800">Set accurate duration so students can plan their learning time</p>

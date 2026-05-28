@@ -63,10 +63,7 @@ async function main() {
   await ensureTestVideo(mp4Path, wavPath);
 
   console.log('Running video → VTT transcription (may take 1–3 min first time)...');
-  const result = await transcribeVideoToSubtitles(mp4Path, vttPath, {
-    title: 'Smoke Lesson',
-    description: 'Should not appear if Whisper succeeded',
-  });
+  const result = await transcribeVideoToSubtitles(mp4Path, vttPath);
 
   const vtt = fs.readFileSync(vttPath, 'utf8');
   console.log('\nResult source:', result.source);
@@ -79,8 +76,8 @@ async function main() {
   }
 
   const lower = vtt.toLowerCase();
-  if (lower.includes('lesson title:') && lower.includes('smoke lesson')) {
-    console.error('\nFAIL: output looks like template fallback, not real STT.');
+  if (lower.includes('lesson title:') || lower.includes('hello and welcome to this lecture')) {
+    console.error('\nFAIL: output looks like template fallback text, not real STT.');
     process.exit(1);
   }
 
